@@ -1,18 +1,58 @@
 import * as THREE from 'three'
+import { TextureFactory } from './textures.js'
 
 export class VoxelBuilder {
     constructor() {
         this.geometry = new THREE.BoxGeometry(1, 1, 1)
+
+        const factory = new TextureFactory()
+        const textures = {
+            grass_top: factory.createTexture('grass_top'),
+            grass_side: factory.createTexture('grass_side'),
+            dirt: factory.createTexture('dirt'),
+            stone: factory.createTexture('stone'),
+            wood_side: factory.createTexture('wood_side'),
+            wood_top: factory.createTexture('wood_top'),
+            leaves: factory.createTexture('leaves'),
+            sand: factory.createTexture('sand'),
+            water: factory.createTexture('water'),
+            glass: factory.createTexture('glass'),
+            roof: factory.createTexture('roof')
+        }
+
+        // Helper to create material
+        const mat = (map, transparent = false, opacity = 1.0) => {
+            return new THREE.MeshLambertMaterial({
+                map: map,
+                transparent: transparent,
+                opacity: opacity
+            })
+        }
+
         this.materials = {
-            grass: new THREE.MeshLambertMaterial({ color: 0x55aa55 }),
-            dirt: new THREE.MeshLambertMaterial({ color: 0x885533 }),
-            stone: new THREE.MeshLambertMaterial({ color: 0x777777 }),
-            wood: new THREE.MeshLambertMaterial({ color: 0x8b4513 }),
-            leaves: new THREE.MeshLambertMaterial({ color: 0x228b22 }),
-            glass: new THREE.MeshLambertMaterial({ color: 0xadd8e6, transparent: true, opacity: 0.6 }),
-            roof: new THREE.MeshLambertMaterial({ color: 0xa52a2a }),
-            water: new THREE.MeshLambertMaterial({ color: 0x0000ff, transparent: true, opacity: 0.7 }),
-            sand: new THREE.MeshLambertMaterial({ color: 0xeedd82 })
+            grass: [
+                mat(textures.grass_side), // px
+                mat(textures.grass_side), // nx
+                mat(textures.grass_top),  // py (top)
+                mat(textures.dirt),       // ny (bottom)
+                mat(textures.grass_side), // pz
+                mat(textures.grass_side)  // nz
+            ],
+            dirt: mat(textures.dirt),
+            stone: mat(textures.stone),
+            wood: [
+                mat(textures.wood_side),
+                mat(textures.wood_side),
+                mat(textures.wood_top),
+                mat(textures.wood_top),
+                mat(textures.wood_side),
+                mat(textures.wood_side)
+            ],
+            leaves: mat(textures.leaves),
+            glass: mat(textures.glass, true, 0.6),
+            roof: mat(textures.roof),
+            water: mat(textures.water, true, 0.7),
+            sand: mat(textures.sand)
         }
 
         // Store matrices for each material type
