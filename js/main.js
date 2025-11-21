@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { createNoise2D } from 'simplex-noise'
 import { VoxelBuilder } from './voxel.js'
 
 // Scene Setup
@@ -63,7 +64,7 @@ function markOccupied(x, z, width, depth) {
 }
 
 // Generators
-function createHouse(x, z, type) {
+function createHouse(x, y, z, type) {
     const width = type === 'large' ? 6 : 4
     const depth = type === 'large' ? 6 : 4
     const height = type === 'large' ? 6 : 4
@@ -77,20 +78,20 @@ function createHouse(x, z, type) {
     // Floor
     for (let i = -width / 2; i < width / 2; i++) {
         for (let j = -depth / 2; j < depth / 2; j++) {
-            builder.addBlock(wallMat, x + i, 1, z + j)
+            builder.addBlock(wallMat, x + i, y + 1, z + j)
         }
     }
 
     // Walls
-    for (let y = 2; y < 2 + height; y++) {
+    for (let h = 2; h < 2 + height; h++) {
         for (let i = -width / 2; i < width / 2; i++) {
             for (let j = -depth / 2; j < depth / 2; j++) {
                 if (i === -width / 2 || i === width / 2 - 1 || j === -depth / 2 || j === depth / 2 - 1) {
                     // Windows
-                    if (y === 3 && (i === 0 || j === 0)) {
-                        builder.addBlock('glass', x + i, y, z + j)
+                    if (h === 3 && (i === 0 || j === 0)) {
+                        builder.addBlock('glass', x + i, y + h, z + j)
                     } else {
-                        builder.addBlock(wallMat, x + i, y, z + j)
+                        builder.addBlock(wallMat, x + i, y + h, z + j)
                     }
                 }
             }
@@ -100,14 +101,14 @@ function createHouse(x, z, type) {
     // Roof
     for (let i = -width / 2 - 1; i <= width / 2; i++) {
         for (let j = -depth / 2 - 1; j <= depth / 2; j++) {
-            builder.addBlock(roofMat, x + i, 2 + height, z + j)
+            builder.addBlock(roofMat, x + i, y + 2 + height, z + j)
         }
     }
     // Pyramid top
     for (let k = 1; k < 3; k++) {
         for (let i = -width / 2 + k; i < width / 2 - k; i++) {
             for (let j = -depth / 2 + k; j < depth / 2 - k; j++) {
-                builder.addBlock(roofMat, x + i, 2 + height + k, z + j)
+                builder.addBlock(roofMat, x + i, y + 2 + height + k, z + j)
             }
         }
     }
@@ -115,24 +116,24 @@ function createHouse(x, z, type) {
     return true
 }
 
-function createTree(x, z) {
+function createTree(x, y, z) {
     if (isOccupied(x, z, 3, 3)) return false
     markOccupied(x, z, 1, 1)
 
     const height = 3 + Math.floor(Math.random() * 3)
 
     // Trunk
-    for (let y = 1; y <= height; y++) {
-        builder.addBlock('wood', x, y, z)
+    for (let h = 1; h <= height; h++) {
+        builder.addBlock('wood', x, y + h, z)
     }
 
     // Leaves
-    for (let y = height - 1; y <= height + 2; y++) {
+    for (let h = height - 1; h <= height + 2; h++) {
         for (let i = -2; i <= 2; i++) {
             for (let j = -2; j <= 2; j++) {
                 if (Math.abs(i) + Math.abs(j) < 3) {
-                    if (i === 0 && j === 0 && y < height + 1) continue
-                    builder.addBlock('leaves', x + i, y, z + j)
+                    if (i === 0 && j === 0 && h < height + 1) continue
+                    builder.addBlock('leaves', x + i, y + h, z + j)
                 }
             }
         }
@@ -140,37 +141,79 @@ function createTree(x, z) {
     return true
 }
 
+// Terrain Setup
+const noise2D = createNoise2D()
+const WATER_LEVEL = -2
+const SAND_LEVEL = 0
+const SNOW_LEVEL = 12
+
+function getTerrainHeight(x, z) {
+    // Multiple octaves for detail
+    const scale1 = 0.01
+    const scale2 = 0.05
+    const h1 = noise2D(x * scale1, z * scale1) * 10
+    const h2 = noise2D(x * scale2, z * scale2) * 2
+    return Math.floor(h1 + h2)
+}
+
 // Generate World
 console.time('World Generation')
 
-// Ground (512x512) - Optimized: Only generate visible top layer
-// Actually, 512x512 is 260k blocks. InstancedMesh can handle it, but let's be safe.
-// Let's do 256x256 for now to ensure performance, or sparse generation.
-// User asked for 512x512.
-const WORLD_SIZE = 256 // Radius (Total 512)
+// Generate Ground
+const WORLD_SIZE = 128 // Reduced for performance with full volume terrain
 
 for (let x = -WORLD_SIZE; x < WORLD_SIZE; x++) {
     for (let z = -WORLD_SIZE; z < WORLD_SIZE; z++) {
-        // Simple noise for terrain variation could go here
-        builder.addBlock('grass', x, 0, z)
+        const y = getTerrainHeight(x, z)
+
+        // Fill down to a reasonable depth to avoid holes when looking from side
+        // For optimization, we only draw the surface and water
+
+        if (y < WATER_LEVEL) {
+            // Water
+            for (let w = y; w <= WATER_LEVEL; w++) {
+                builder.addBlock('water', x, w, z)
+            }
+            // Sand/Dirt bottom
+            builder.addBlock('sand', x, y, z)
+        } else {
+            // Surface block
+            let type = 'grass'
+            if (y <= SAND_LEVEL) type = 'sand'
+            else if (y >= SNOW_LEVEL) type = 'stone' // Snow/Stone peaks
+
+            builder.addBlock(type, x, y, z)
+
+            // Add some dirt below surface if exposed (simplified: just add one block below)
+            if (y > WATER_LEVEL) builder.addBlock('dirt', x, y - 1, z)
+        }
     }
 }
 
 // Buildings
 let houseCount = 0
-for (let i = 0; i < 200; i++) {
+for (let i = 0; i < 100; i++) { // Reduced count further for performance
     const x = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.8)
     const z = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.8)
-    const type = Math.random() > 0.7 ? 'large' : 'small'
-    if (createHouse(x, z, type)) houseCount++
+    const y = getTerrainHeight(x, z)
+
+    if (y > WATER_LEVEL) { // Don't build underwater
+        const type = Math.random() > 0.7 ? 'large' : 'small'
+        // Adjust createHouse to take y
+        if (createHouse(x, y, z, type)) houseCount++
+    }
 }
 
 // Trees
 let treeCount = 0
-for (let i = 0; i < 400; i++) {
+for (let i = 0; i < 300; i++) {
     const x = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.9)
     const z = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.9)
-    if (createTree(x, z)) treeCount++
+    const y = getTerrainHeight(x, z)
+
+    if (y > WATER_LEVEL) {
+        if (createTree(x, y, z)) treeCount++
+    }
 }
 
 console.log(`Generated ${houseCount} houses and ${treeCount} trees.`)
