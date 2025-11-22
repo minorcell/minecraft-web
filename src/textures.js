@@ -4,6 +4,7 @@ export class TextureFactory {
     constructor() {
         // Cache for textures by type and variant
         this.textureCache = {}
+        this.canvasCache = {}
         this.variants = 4 // Number of texture variants per type
     }
 
@@ -265,6 +266,8 @@ export class TextureFactory {
                 break
         }
 
+        this.canvasCache[key] = canvas
+
         const texture = new THREE.CanvasTexture(canvas)
         texture.magFilter = THREE.NearestFilter
         texture.minFilter = THREE.NearestFilter
@@ -274,6 +277,18 @@ export class TextureFactory {
         this.textureCache[key] = texture
 
         return texture
+    }
+
+    /**
+     * 获取已生成的原始 Canvas（如果不存在则生成）
+     */
+    getCanvas(type, variant = 0) {
+        const key = `${type}_${variant}`
+        if (this.canvasCache[key]) return this.canvasCache[key]
+        this.createTexture(type, variant)
+        // 强制确保 canvas 被缓存
+        const canvas = this.canvasCache[key]
+        return canvas || null
     }
 
     fillNoise(ctx, color1, color2, factor, seed = 0) {

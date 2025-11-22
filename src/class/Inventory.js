@@ -97,45 +97,35 @@ export class BlockPreviewRenderer {
         const topImg = this.getTextureCanvas(topName)
         const sideImg = this.getTextureCanvas(sideName || topName)
 
-        const topSize = this.size * 0.68
-        const sideH = this.size * 0.38
-        const x = (this.size - topSize) * 0.5
-        const y = this.size * 0.08
+        const stripH = this.size * 0.28
+        const stripY = this.size - stripH - 4
+        const faceSize = this.size * 0.78
+        const faceX = (this.size - faceSize) * 0.5
+        const faceY = this.size * 0.08
+
+        // 背景微光
+        const grad = ctx.createLinearGradient(0, 0, 0, this.size)
+        grad.addColorStop(0, 'rgba(255,255,255,0.04)')
+        grad.addColorStop(1, 'rgba(0,0,0,0.18)')
+        ctx.fillStyle = grad
+        ctx.fillRect(0, 0, this.size, this.size)
+
+        // 侧面条带
+        if (sideImg) {
+            ctx.drawImage(sideImg, 0, 0, 64, 64, 2, stripY, this.size - 4, stripH)
+            ctx.fillStyle = 'rgba(0,0,0,0.22)'
+            ctx.fillRect(2, stripY, this.size - 4, stripH)
+        }
 
         // 顶面
         if (topImg) {
-            ctx.save()
-            ctx.translate(x, y)
-            ctx.transform(1, -0.5, 1, 0.5, 0, 0)
-            ctx.drawImage(topImg, 0, 0, 64, 64, 0, 0, topSize, topSize)
-            ctx.restore()
-        }
-
-        // 右侧
-        if (sideImg) {
-            ctx.save()
-            ctx.translate(x + topSize, y + topSize * 0.5)
-            ctx.transform(1, 0.5, 0, 1, 0, 0)
-            ctx.globalAlpha = 0.95
-            ctx.drawImage(sideImg, 0, 0, 64, 64, 0, 0, topSize * 0.55, sideH)
-            ctx.globalAlpha = 1
-            ctx.fillStyle = 'rgba(0,0,0,0.10)'
-            ctx.fillRect(0, 0, topSize * 0.55, sideH)
-            ctx.restore()
-        }
-
-        // 左侧
-        if (sideImg) {
-            ctx.save()
-            ctx.translate(x, y + topSize * 0.5)
-            ctx.transform(1, 0.5, 0, 1, 0, 0)
-            ctx.scale(-1, 1)
-            ctx.globalAlpha = 0.92
-            ctx.drawImage(sideImg, 0, 0, 64, 64, 0, 0, topSize * 0.55, sideH)
-            ctx.globalAlpha = 1
-            ctx.fillStyle = 'rgba(0,0,0,0.14)'
-            ctx.fillRect(0, 0, topSize * 0.55, sideH)
-            ctx.restore()
+            ctx.drawImage(topImg, 0, 0, 64, 64, faceX, faceY, faceSize, faceSize)
+            ctx.strokeStyle = 'rgba(0,0,0,0.35)'
+            ctx.lineWidth = 2
+            ctx.strokeRect(faceX + 1, faceY + 1, faceSize - 2, faceSize - 2)
+        } else {
+            ctx.fillStyle = '#777'
+            ctx.fillRect(faceX, faceY, faceSize, faceSize)
         }
 
         return canvas.toDataURL('image/png')

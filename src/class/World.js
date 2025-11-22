@@ -72,6 +72,9 @@ export class World {
         this.useDecorWorker = true
         // 碰撞检测
         this.occupied = new Set()
+        this.lastChunkCheckPos = null
+        this.lastChunkCheckChunk = null
+        this.chunkCheckThreshold = this.terrain.settings.chunkSize * 0.45
     }
 
     applyChunkData(payload) {
@@ -382,6 +385,27 @@ export class World {
      * @param {{x:number,z:number}} position
      */
     updateChunks(position) {
+        if (!position) return
+        const { chunkSize } = this.terrain.settings
+        const currentChunk = {
+            cx: Math.floor(position.x / chunkSize),
+            cz: Math.floor(position.z / chunkSize)
+        }
+
+        if (this.lastChunkCheckChunk &&
+            this.lastChunkCheckChunk.cx === currentChunk.cx &&
+            this.lastChunkCheckChunk.cz === currentChunk.cz &&
+            this.lastChunkCheckPos) {
+            const dx = position.x - this.lastChunkCheckPos.x
+            const dz = position.z - this.lastChunkCheckPos.z
+            const distSq = dx * dx + dz * dz
+            if (distSq < this.chunkCheckThreshold * this.chunkCheckThreshold) {
+                return
+            }
+        }
+
+        this.lastChunkCheckPos = new THREE.Vector3(position.x, 0, position.z)
+        this.lastChunkCheckChunk = currentChunk
         const diff = this.chunkManager.diff(new THREE.Vector3(position.x, 0, position.z))
         const minCoord = -this.settings.worldSize
         const maxCoord = this.settings.worldSize - 1

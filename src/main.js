@@ -89,6 +89,7 @@ const weather = new WeatherSystem({
 
 // 生成世界
 world.generate()
+player.findSafeSpawn({ x: 0, z: 0 }, 20)
 weather.update(0, player.position)
 
 // ====== 显示世界信息 =====

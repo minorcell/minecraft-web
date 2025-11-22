@@ -239,7 +239,6 @@ export class BlockInteractor {
 
         if (preview) {
             iconEl.style.backgroundImage = `url(${preview})`
-            iconEl.style.background = 'none'
             iconEl.style.backgroundColor = 'rgba(0,0,0,0.1)'
             iconEl.textContent = ''
         } else if (meta) {
@@ -442,7 +441,6 @@ export class BlockInteractor {
         const preview = this.previewRenderer.getPreview(this.heldItem.type)
         if (preview) {
             icon.style.backgroundImage = `url(${preview})`
-            icon.style.background = 'none'
             icon.style.backgroundColor = 'rgba(0,0,0,0.1)'
             icon.textContent = ''
         } else {
