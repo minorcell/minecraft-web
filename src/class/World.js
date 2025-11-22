@@ -78,6 +78,7 @@ export class World {
         this.chunkCheckThreshold = this.terrain.settings.chunkSize * 0.45
         this.lastChunkCheckTime = 0
         this.chunkCheckInterval = 0.12 // seconds
+        this.maxChunkRequestsPerTick = 4
     }
 
     applyChunkData(payload) {
@@ -397,7 +398,7 @@ export class World {
      * 更新视野内chunk：根据相机位置加载/卸载
      * @param {{x:number,z:number}} position
      */
-    updateChunks(position) {
+    updateChunks(position, forward = null) {
         if (!position) return
         const now = performance?.now ? performance.now() : Date.now()
         if (this.lastChunkCheckTime && (now - this.lastChunkCheckTime) < this.chunkCheckInterval * 1000) {
@@ -437,8 +438,29 @@ export class World {
             // 保留数据（未调用clearChunk），以便重新渲染
         }
 
-        // 加载
-        for (const item of diff.toLoad) {
+        // 加载：按距离排序，限制每次请求数量，缓解抖动
+        const fwd = forward ? new THREE.Vector3(forward.x, 0, forward.z).normalize() : null
+        const sortedLoads = diff.toLoad
+            .map(item => {
+                const centerX = (item.cx + 0.5) * this.terrain.settings.chunkSize
+                const centerZ = (item.cz + 0.5) * this.terrain.settings.chunkSize
+                const dx = centerX - position.x
+                const dz = centerZ - position.z
+                const distSq = dx * dx + dz * dz
+                let score = distSq
+                if (fwd) {
+                    const dir = new THREE.Vector3(dx, 0, dz).normalize()
+                    const dot = Math.max(-1, Math.min(1, dir.dot(fwd)))
+                    const bias = 1 - dot // 0 前方, 2 后方
+                    score = distSq * (1 + 0.35 * bias)
+                }
+                return { ...item, distSq, score }
+            })
+            .sort((a, b) => a.score - b.score)
+
+        let issued = 0
+        for (const item of sortedLoads) {
+            if (issued >= this.maxChunkRequestsPerTick) break
             const { cx, cz, key } = item
             const startX = cx * this.terrain.settings.chunkSize
             const startZ = cz * this.terrain.settings.chunkSize
@@ -449,6 +471,7 @@ export class World {
 
             // 优先使用worker生成
             if (this.useChunkWorker && this.requestChunkFromWorker(cx, cz, key, minCoord, maxCoord)) {
+                issued++
                 continue
             }
 

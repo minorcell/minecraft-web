@@ -244,6 +244,13 @@ export class PlayerController {
         }
     }
 
+    getForwardFlat() {
+        const forward = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, this.yaw, 0, 'YXZ'))
+        forward.y = 0
+        forward.normalize()
+        return forward
+    }
+
     /**
      * 每帧更新
      * @param {number} dt - delta time in seconds

@@ -109,7 +109,7 @@ function animate() {
     weather.update(dt, player.position)
 
     // 按玩家位置加载chunk
-    world.updateChunks(player.position)
+    world.updateChunks(player.position, player.getForwardFlat())
 
     renderer.render(scene, camera)
 }
