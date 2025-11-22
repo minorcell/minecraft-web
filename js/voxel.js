@@ -4,7 +4,7 @@ import { SeededRandom } from './class/Random.js'
 
 export class VoxelBuilder {
     constructor(options = {}) {
-        const { geometry = null, seed = Date.now() } = options
+        const { geometry = null, seed = Date.now(), registry = null, chunkSize = 16 } = options
         // 使用传入的几何体或默认立方体
         this.geometry = geometry || new THREE.BoxGeometry(1, 1, 1)
         this.factory = new TextureFactory()
@@ -91,7 +91,8 @@ export class VoxelBuilder {
 
         // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant}> }>
         this.instances = new Map()
-        this.chunkSize = options.chunkSize || 16
+        this.chunkSize = chunkSize
+        this.registry = registry
 
         this.dummy = new THREE.Object3D()
     }
@@ -138,8 +139,16 @@ export class VoxelBuilder {
 
         bucket[type].push({
             matrix: this.dummy.matrix.clone(),
-            variant: v
+            variant: v,
+            x,
+            y,
+            z
         })
+
+        // 记录到方块注册表
+        if (this.registry) {
+            this.registry.add(type, x, y, z)
+        }
     }
 
     /**
@@ -160,6 +169,27 @@ export class VoxelBuilder {
      */
     addBlockFromObject(block) {
         this.addBlock(block.type, block.x, block.y, block.z, block.variant)
+    }
+
+    /**
+     * 移除指定坐标的方块（从实例和注册表）
+     * @param {number} x
+     * @param {number} y
+     * @param {number} z
+     * @param {string|null} chunkKey
+     */
+    removeBlock(x, y, z, chunkKey = null) {
+        const key = chunkKey || this.getChunkKeyFromPosition(x, z)
+        const chunkData = this.instances.get(key)
+        if (!chunkData) return
+
+        for (const type of Object.keys(chunkData)) {
+            chunkData[type] = chunkData[type].filter(inst => !(inst.x === x && inst.y === y && inst.z === z))
+        }
+
+        if (this.registry) {
+            this.registry.remove(x, y, z)
+        }
     }
 
     render(scene, chunkKey = 'default') {

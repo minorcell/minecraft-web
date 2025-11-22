@@ -1,6 +1,9 @@
 import * as THREE from 'three'
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { World } from './class/World.js'
+import { PlayerController } from './class/Player.js'
+import { BlockInteractor } from './class/BlockInteractor.js'
+import { Inventory } from './class/Inventory.js'
+import { GuideBook } from './class/GuideBook.js'
 
 // ====== 场景设置 ======
 const scene = new THREE.Scene()
@@ -8,19 +11,14 @@ scene.background = new THREE.Color(0x87CEEB) // 天空蓝
 scene.fog = new THREE.Fog(0x87CEEB, 50, 300)
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000)
-camera.position.set(50, 50, 50)
-camera.lookAt(0, 0, 0)
+camera.position.set(0, 20, 20)
+camera.lookAt(0, 10, 0)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 document.body.appendChild(renderer.domElement)
-
-// ====== 控制器 ======
-const controls = new OrbitControls(camera, renderer.domElement)
-controls.enableDamping = true
-controls.maxDistance = 300
 
 // ====== 光照 ======
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
@@ -51,6 +49,33 @@ const world = new World({
     viewDistance: 6
 })
 
+// 玩家与交互
+const player = new PlayerController({
+    camera,
+    scene,
+    terrain: world.terrain
+})
+
+const inventory = new Inventory(27, [
+    { type: 'grass', count: 16 },
+    { type: 'dirt', count: 32 },
+    { type: 'stone', count: 32 },
+    { type: 'wood', count: 16 },
+    { type: 'sand', count: 16 },
+    { type: 'snow', count: 16 },
+    { type: 'cactus', count: 8 },
+    { type: 'flower', count: 16 },
+    { type: 'leaves', count: 16 }
+])
+
+const interactor = new BlockInteractor({
+    camera,
+    scene,
+    world,
+    inventory,
+    guideBook: new GuideBook()
+})
+
 // 生成世界
 world.generate()
 
@@ -61,10 +86,17 @@ console.log('村庄统计:', world.getVillageStats())
 console.log('==================================')
 
 // ====== 动画循环 ======
+const clock = new THREE.Clock()
 function animate() {
     requestAnimationFrame(animate)
-    controls.update()
-    world.updateChunks(camera.position)
+    const dt = clock.getDelta()
+
+    player.update(dt)
+    interactor.update()
+
+    // 按玩家位置加载chunk
+    world.updateChunks(player.position)
+
     renderer.render(scene, camera)
 }
 animate()

@@ -5,6 +5,7 @@ import { Village } from './Village.js'
 import { Decoration } from './Decoration.js'
 import { SeededRandom } from './Random.js'
 import { ChunkManager } from './ChunkManager.js'
+import { BlockRegistry } from './BlockRegistry.js'
 
 /**
  * 世界类 - 管理整个游戏世界
@@ -31,6 +32,7 @@ export class World {
         this.random = new SeededRandom(this.seed)
 
         // 初始化系统
+        this.registry = new BlockRegistry()
         this.terrain = new Terrain({
             worldSize: this.settings.worldSize,
             bottomLevel: -10,
@@ -43,7 +45,8 @@ export class World {
 
         this.voxelBuilder = new VoxelBuilder({
             seed: this.seed,
-            chunkSize: this.terrain.settings.chunkSize
+            chunkSize: this.terrain.settings.chunkSize,
+            registry: this.registry
         })
         this.villages = []
         this.decorations = []
@@ -350,6 +353,16 @@ export class World {
     }
 
     /**
+     * 基于方块坐标刷新所在chunk
+     * @param {number} x
+     * @param {number} z
+     */
+    refreshChunkAt(x, z) {
+        const key = this.voxelBuilder.getChunkKeyFromPosition(x, z)
+        this.renderChunk(key)
+    }
+
+    /**
      * 获取世界信息
      * @returns {object}
      */
@@ -408,7 +421,8 @@ export class World {
             this.terrain.updateSettings({ seed: this.seed })
             this.voxelBuilder = new VoxelBuilder({
                 seed: this.seed,
-                chunkSize: this.terrain.settings.chunkSize
+                chunkSize: this.terrain.settings.chunkSize,
+                registry: this.registry
             })
         }
 
