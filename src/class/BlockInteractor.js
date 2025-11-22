@@ -69,7 +69,7 @@ export class BlockInteractor {
      */
     createCrackOverlay() {
         const geo = new THREE.BoxGeometry(1.01, 1.01, 1.01)
-        const texture = this.world.textureFactory.createTexture('crack', 0)
+        const texture = this.world.voxelBuilder.factory.createTexture('crack', 0)
         texture.transparent = true
         const mat = new THREE.MeshBasicMaterial({
             map: texture,
