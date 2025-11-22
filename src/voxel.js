@@ -20,12 +20,18 @@ export class VoxelBuilder {
             })
         }
 
-        // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant,x,y,z}> }>
+        // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant,x,y,z,layer}> }>
         this.instances = new Map()
+        this.layeredInstances = new Map() // Map<chunkKey, { solid: [], alpha: [], water: [] }>
         this.chunkSize = chunkSize
         this.registry = registry
         this.blockDefs = blockDefs
         this.materialsCache = new Map()
+        this.layeredMaterials = {
+            solid: new Map(),
+            alpha: new Map(),
+            water: new Map()
+        }
 
         this.dummy = new THREE.Object3D()
         this.sharedGeometry = this.geometry // 共享几何以避免重复克隆
@@ -63,18 +69,23 @@ export class VoxelBuilder {
 
         if (!this.instances.has(key)) {
             this.instances.set(key, {})
+            this.layeredInstances.set(key, { solid: [], alpha: [], water: [] })
         }
         const bucket = this.instances.get(key)
         if (!bucket[type]) {
             bucket[type] = []
         }
 
+        const opts = this.blockDefs.getMaterialOptions(type)
+        const layer = opts.renderLayer || 'solid'
+
         bucket[type].push({
             matrix: this.dummy.matrix.clone(),
             variant: v,
             x,
             y,
-            z
+            z,
+            layer
         })
 
         // 记录到方块注册表
@@ -128,43 +139,72 @@ export class VoxelBuilder {
         const chunkData = this.instances.get(chunkKey)
         if (!chunkData) return []
 
-        const meshes = []
-        for (const [type, instances] of Object.entries(chunkData)) {
-            if (!instances || instances.length === 0) continue
+        const layers = this.layeredInstances.get(chunkKey) || { solid: [], alpha: [], water: [] }
+        const collectLayer = (layerName, flags) => {
+            const meshes = []
+            for (const [type, instances] of Object.entries(chunkData)) {
+                if (!instances || instances.length === 0) continue
+                const filtered = instances.filter(inst => inst.layer === layerName)
+                if (filtered.length === 0) continue
 
-            // Group by variant
-            const groups = {}
-            for (const instance of instances) {
-                const v = instance.variant
-                if (!groups[v]) groups[v] = []
-                groups[v].push(instance)
-            }
-
-            const mats = this.materialsCache.get(type)
-            if (!mats) continue
-
-            for (const [variant, variantInstances] of Object.entries(groups)) {
-                const material = mats[variant % mats.length]
-                const mesh = new THREE.InstancedMesh(this.sharedGeometry, material, variantInstances.length)
-                for (let i = 0; i < variantInstances.length; i++) {
-                    mesh.setMatrixAt(i, variantInstances[i].matrix)
+                // Group by variant
+                const groups = {}
+                for (const inst of filtered) {
+                    const v = inst.variant
+                    if (!groups[v]) groups[v] = []
+                    groups[v].push(inst)
                 }
-                mesh.castShadow = true
-                mesh.receiveShadow = true
-                mesh.instanceMatrix.needsUpdate = true
-                scene.add(mesh)
-                meshes.push(mesh)
+
+                const mats = this.materialsCache.get(type)
+                if (!mats) continue
+
+                for (const [variant, variantInstances] of Object.entries(groups)) {
+                    const material = mats[variant % mats.length]
+                    if (flags) {
+                        if (Array.isArray(material)) {
+                            material.forEach(m => {
+                                m.transparent = flags.transparent ?? m.transparent
+                                m.opacity = flags.opacity ?? m.opacity
+                                m.depthWrite = flags.depthWrite ?? m.depthWrite
+                                m.depthTest = flags.depthTest ?? m.depthTest
+                            })
+                        } else {
+                            material.transparent = flags.transparent ?? material.transparent
+                            material.opacity = flags.opacity ?? material.opacity
+                            material.depthWrite = flags.depthWrite ?? material.depthWrite
+                            material.depthTest = flags.depthTest ?? material.depthTest
+                        }
+                    }
+                    const mesh = new THREE.InstancedMesh(this.sharedGeometry, material, variantInstances.length)
+                    for (let i = 0; i < variantInstances.length; i++) {
+                        mesh.setMatrixAt(i, variantInstances[i].matrix)
+                    }
+                    mesh.castShadow = layerName === 'solid'
+                    mesh.receiveShadow = layerName !== 'water'
+                    mesh.instanceMatrix.needsUpdate = true
+                    scene.add(mesh)
+                    meshes.push(mesh)
+                    layers[layerName].push(mesh)
+                }
             }
+            return meshes
         }
-        return meshes
+
+        const result = []
+        result.push(...collectLayer('solid'))
+        result.push(...collectLayer('alpha', { transparent: true, depthWrite: false }))
+        result.push(...collectLayer('water', { transparent: true, depthWrite: false }))
+        return result
     }
 
     clearChunk(chunkKey) {
         this.instances.delete(chunkKey)
+        this.layeredInstances.delete(chunkKey)
     }
 
     clearAll() {
         this.instances.clear()
+        this.layeredInstances.clear()
     }
 
     /**

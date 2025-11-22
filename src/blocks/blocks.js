@@ -53,6 +53,7 @@ export const blocks = [
     drops: [{ id: 'leaves', count: 1 }],
     transparent: true,
     opacity: 1.0,
+    renderLayer: 'alpha',
     textures: { all: 'leaves' }
   },
   {
@@ -64,6 +65,7 @@ export const blocks = [
     drops: [],
     transparent: true,
     opacity: 0.6,
+    renderLayer: 'alpha',
     textures: { all: 'glass' }
   },
   {
@@ -84,6 +86,7 @@ export const blocks = [
     drops: [],
     transparent: true,
     opacity: 0.7,
+    renderLayer: 'water',
     textures: { all: 'water' }
   },
   {

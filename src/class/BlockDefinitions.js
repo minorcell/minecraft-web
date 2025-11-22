@@ -47,7 +47,8 @@ export class BlockDefinitions {
         if (!def) return { transparent: false, opacity: 1.0 }
         return {
             transparent: !!def.transparent,
-            opacity: def.opacity !== undefined ? def.opacity : 1.0
+            opacity: def.opacity !== undefined ? def.opacity : 1.0,
+            renderLayer: def.renderLayer || 'solid'
         }
     }
 
