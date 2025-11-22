@@ -33,7 +33,7 @@ export class PlayerController {
         this.playerHeight = 2.0 // 玩家高度两格
         this.stepHeight = 1.0 // 最大跨越一格高度
         this.bodyHalf = 0.35 // XZ半宽，稍宽以减少穿模
-        this.solidBlocks = new Set(['grass', 'dirt', 'stone', 'wood', 'sand', 'snow', 'cactus', 'roof', 'leaves', 'bedrock'])
+        this.blockDefs = world.blockDefs
         this.yaw = 0
         this.pitch = 0
         this.mouseSensitivity = 0.002
@@ -107,7 +107,7 @@ export class PlayerController {
             for (let y = minY; y <= maxY; y++) {
                 for (let z = minZ; z <= maxZ; z++) {
                     const type = this.world.registry.get(x, y, z)
-                    if (type && this.solidBlocks.has(type)) {
+                    if (type && this.blockDefs.isSolid(type)) {
                         // 方块AABB（占据整个格子）
                         const bMinX = x - 0.5
                         const bMaxX = x + 0.5

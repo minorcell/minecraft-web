@@ -1,20 +1,12 @@
 /**
- * 方块注册表：记录世界中每个方块的类型，支持查询/增删
- * 仅存储基本类型和坐标，便于射线拾取和交互
+ * 方块存储：记录世界坐标上的方块类型（轻量级映射）
  */
-export class BlockRegistry {
+export class BlockStore {
     constructor() {
         /** @type {Map<string, string>} */
         this.map = new Map()
     }
 
-    /**
-     * 坐标转Key
-     * @param {number} x
-     * @param {number} y
-     * @param {number} z
-     * @returns {string}
-     */
     key(x, y, z) {
         return `${x},${y},${z}`
     }

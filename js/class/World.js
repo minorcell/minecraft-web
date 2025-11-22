@@ -5,7 +5,8 @@ import { Village } from './Village.js'
 import { Decoration } from './Decoration.js'
 import { SeededRandom } from './Random.js'
 import { ChunkManager } from './ChunkManager.js'
-import { BlockRegistry } from './BlockRegistry.js'
+import { BlockStore } from './BlockStore.js'
+import { BlockDefinitions } from './BlockDefinitions.js'
 
 /**
  * 世界类 - 管理整个游戏世界
@@ -32,7 +33,8 @@ export class World {
         this.random = new SeededRandom(this.seed)
 
         // 初始化系统
-        this.registry = new BlockRegistry()
+        this.blockDefs = new BlockDefinitions()
+        this.registry = new BlockStore()
         this.terrain = new Terrain({
             worldSize: this.settings.worldSize,
             bottomLevel: -10,
@@ -46,7 +48,8 @@ export class World {
         this.voxelBuilder = new VoxelBuilder({
             seed: this.seed,
             chunkSize: this.terrain.settings.chunkSize,
-            registry: this.registry
+            registry: this.registry,
+            blockDefs: this.blockDefs
         })
         this.villages = []
         this.decorations = []
@@ -422,7 +425,8 @@ export class World {
             this.voxelBuilder = new VoxelBuilder({
                 seed: this.seed,
                 chunkSize: this.terrain.settings.chunkSize,
-                registry: this.registry
+                registry: this.registry,
+                blockDefs: this.blockDefs
             })
         }
 
@@ -439,7 +443,7 @@ export class World {
         this.villages = []
         this.decorations = []
         this.occupied.clear()
-        this.voxelBuilder.clear()
+        this.voxelBuilder.clearAll()
     }
 
     /**

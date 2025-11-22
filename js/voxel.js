@@ -4,7 +4,7 @@ import { SeededRandom } from './class/Random.js'
 
 export class VoxelBuilder {
     constructor(options = {}) {
-        const { geometry = null, seed = Date.now(), registry = null, chunkSize = 16 } = options
+        const { geometry = null, seed = Date.now(), registry = null, chunkSize = 16, blockDefs = null } = options
         // 使用传入的几何体或默认立方体
         this.geometry = geometry || new THREE.BoxGeometry(1, 1, 1)
         this.factory = new TextureFactory()
@@ -20,83 +20,12 @@ export class VoxelBuilder {
             })
         }
 
-        // Create multiple variants for each material type
-        this.materials = {
-            grass: [],
-            dirt: [],
-            stone: [],
-            wood: [],
-            leaves: [],
-            glass: [],
-            roof: [],
-            water: [],
-            sand: [],
-            snow: [],
-            cactus: [],
-            flower: [],
-            bedrock: []
-        }
-
-        // Generate variants for each material
-        for (let v = 0; v < this.variants; v++) {
-            // Grass: 6 faces (sides, top, bottom)
-            this.materials.grass.push([
-                mat(this.factory.createTexture('grass_side', v)), // px
-                mat(this.factory.createTexture('grass_side', v)), // nx
-                mat(this.factory.createTexture('grass_top', v)),  // py (top)
-                mat(this.factory.createTexture('dirt', v)),       // ny (bottom)
-                mat(this.factory.createTexture('grass_side', v)), // pz
-                mat(this.factory.createTexture('grass_side', v))  // nz
-            ])
-
-            // Dirt
-            this.materials.dirt.push(mat(this.factory.createTexture('dirt', v)))
-
-            // Stone
-            this.materials.stone.push(mat(this.factory.createTexture('stone', v)))
-
-            // Wood: 6 faces
-            this.materials.wood.push([
-                mat(this.factory.createTexture('wood_side', v)),
-                mat(this.factory.createTexture('wood_side', v)),
-                mat(this.factory.createTexture('wood_top', v)),
-                mat(this.factory.createTexture('wood_top', v)),
-                mat(this.factory.createTexture('wood_side', v)),
-                mat(this.factory.createTexture('wood_side', v))
-            ])
-
-            // Leaves
-            this.materials.leaves.push(mat(this.factory.createTexture('leaves', v)))
-
-            // Glass
-            this.materials.glass.push(mat(this.factory.createTexture('glass', v), true, 0.6))
-
-            // Roof
-            this.materials.roof.push(mat(this.factory.createTexture('roof', v)))
-
-            // Water - less transparent for better underwater effect
-            this.materials.water.push(mat(this.factory.createTexture('water', v), true, 0.7))
-
-            // Sand
-            this.materials.sand.push(mat(this.factory.createTexture('sand', v)))
-
-            // Snow
-            this.materials.snow.push(mat(this.factory.createTexture('snow', v)))
-
-            // Cactus
-            this.materials.cactus.push(mat(this.factory.createTexture('cactus', v)))
-
-            // Flower
-            this.materials.flower.push(mat(this.factory.createTexture('flower', v)))
-
-            // Bedrock
-            this.materials.bedrock.push(mat(this.factory.createTexture('stone', v)))
-        }
-
-        // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant}> }>
+        // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant,x,y,z}> }>
         this.instances = new Map()
         this.chunkSize = chunkSize
         this.registry = registry
+        this.blockDefs = blockDefs
+        this.materialsCache = new Map()
 
         this.dummy = new THREE.Object3D()
     }
@@ -120,10 +49,8 @@ export class VoxelBuilder {
     }
 
     addBlock(type, x, y, z, variant = null, chunkKey = null) {
-        if (!this.materials[type]) {
-            console.warn(`Unknown material type: ${type}`)
-            return
-        }
+        this.ensureMaterial(type)
+        if (!this.materialsCache.has(type)) return
 
         // Use provided variant or random
         const v = variant !== null ? variant : this.getVariantFromHash(type, x, y, z)
@@ -212,9 +139,12 @@ export class VoxelBuilder {
                 groups[v].push(instance)
             }
 
+            const mats = this.materialsCache.get(type)
+            if (!mats) continue
+
             for (const [variant, variantInstances] of Object.entries(groups)) {
-                const material = this.materials[type][variant]
-                const mesh = new THREE.InstancedMesh(this.geometry, material, variantInstances.length)
+                const matEntry = mats[variant % mats.length]
+                const mesh = new THREE.InstancedMesh(this.geometry, matEntry, variantInstances.length)
                 for (let i = 0; i < variantInstances.length; i++) {
                     mesh.setMatrixAt(i, variantInstances[i].matrix)
                 }
@@ -234,5 +164,45 @@ export class VoxelBuilder {
 
     clearAll() {
         this.instances.clear()
+    }
+
+    /**
+     * 若未存在材质则基于方块定义生成
+     * @param {string} type
+     */
+    ensureMaterial(type) {
+        if (this.materialsCache.has(type)) return
+        if (!this.blockDefs) return
+        const textures = this.blockDefs.getTextures(type)
+        const opts = this.blockDefs.getMaterialOptions(type)
+        const mat = (tex) => new THREE.MeshLambertMaterial({
+            map: tex,
+            transparent: opts.transparent,
+            opacity: opts.opacity
+        })
+
+        const allTex = textures.all ? this.factory.createTexture(textures.all, 0) : null
+        const top = textures.top ? this.factory.createTexture(textures.top, 0) : allTex
+        const bottom = textures.bottom ? this.factory.createTexture(textures.bottom, 0) : allTex
+        const side = textures.side ? this.factory.createTexture(textures.side, 0) : allTex
+
+        let variants = []
+
+        if (top && bottom && side) {
+            variants.push([
+                mat(side),
+                mat(side),
+                mat(top),
+                mat(bottom),
+                mat(side),
+                mat(side)
+            ])
+        } else if (allTex) {
+            variants.push(mat(allTex))
+        } else {
+            variants.push(mat(this.factory.createTexture('stone', 0)))
+        }
+
+        this.materialsCache.set(type, variants)
     }
 }

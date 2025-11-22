@@ -19,6 +19,7 @@ export class BlockInteractor {
         this.world = world
         this.inventory = inventory
         this.guideBook = guideBook
+        this.blockDefs = world.blockDefs
         this.player = player
         this.registry = world.registry
         this.maxDistance = 6
@@ -271,28 +272,10 @@ export class BlockInteractor {
     }
 
     getBlockHardness(type) {
-        switch (type) {
-            case 'stone':
-            case 'roof':
-                return 1.2
-            case 'wood':
-            case 'cactus':
-                return 0.8
-            case 'grass':
-            case 'dirt':
-            case 'sand':
-            case 'snow':
-                return 0.4
-            case 'leaves':
-            case 'flower':
-                return 0.2
-            case 'water':
-                return Infinity
-            case 'bedrock':
-                return Infinity
-            default:
-                return 0.6
-        }
+        const def = this.blockDefs.get(type)
+        if (!def) return 0.6
+        if (def.breakable === false) return Infinity
+        return def.hardness ?? 0.6
     }
 
     /**
@@ -301,19 +284,9 @@ export class BlockInteractor {
     getToolPower() {
         const slot = this.inventory.getSlot(this.selectedIndex)
         if (!slot || slot.count <= 0) {
-            return 0.6 // 空手效率
+            return this.blockDefs.getToolPower(null)
         }
-        switch (slot.type) {
-            case 'stone':
-                return 2.0
-            case 'wood':
-                return 1.5
-            case 'cactus':
-            case 'sand':
-                return 1.1
-            default:
-                return 1.0
-        }
+        return this.blockDefs.getToolPower(slot.type)
     }
 
     targetKey(t) {
@@ -441,9 +414,13 @@ export class BlockInteractor {
         this.world.voxelBuilder.removeBlock(x, y, z)
 
         // 生成掉落实体
-        if (type) {
-            this.spawnDrop(type, x + 0.2 * (Math.random() - 0.5), y + 0.6, z + 0.2 * (Math.random() - 0.5))
-        }
+        const drops = this.blockDefs.getDrops(type)
+        drops.forEach(drop => {
+            const count = drop.count || 1
+            for (let i = 0; i < count; i++) {
+                this.spawnDrop(drop.id, x + 0.2 * (Math.random() - 0.5), y + 0.6, z + 0.2 * (Math.random() - 0.5))
+            }
+        })
 
         // 简单水流：仅在水位以下或相邻侧面有水且下方有支撑时填充
         const neighbors = [
@@ -516,6 +493,7 @@ export class BlockInteractor {
         if (this.registry.has(px, py, pz)) return
 
         this.world.voxelBuilder.addBlock(type, px, py, pz)
+        this.registry.add(type, px, py, pz)
         this.inventory.consume(this.selectedIndex)
         this.updateInventoryUI()
         this.world.refreshChunkAt(px, pz)
