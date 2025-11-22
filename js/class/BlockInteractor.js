@@ -544,22 +544,25 @@ export class BlockInteractor {
      */
     updateDrops() {
         if (!this.player) return
-        const ground = this.terrain ? this.terrain : this.world.terrain
         const playerPos = this.player.position
         const gravity = 30
         const pickupRadius = 1.2
         const remaining = []
+        const dt = 1 / 60
 
         for (const drop of this.drops) {
-            drop.vel.y -= gravity * (1 / 60)
-            drop.mesh.position.add(drop.vel.clone().multiplyScalar(1 / 60))
+            drop.vel.y -= gravity * dt
+            drop.mesh.position.add(drop.vel.clone().multiplyScalar(dt))
 
-            const groundY = ground.getHeight(drop.mesh.position.x, drop.mesh.position.z) + 0.2
-            if (drop.mesh.position.y <= groundY) {
-                drop.mesh.position.y = groundY
-                drop.vel.y *= -0.2
-                drop.vel.x *= 0.7
-                drop.vel.z *= 0.7
+            const support = this.findSupportBelow(drop.mesh.position)
+            if (support.hit) {
+                const targetY = support.y + 0.2
+                if (drop.mesh.position.y <= targetY) {
+                    drop.mesh.position.y = targetY
+                    drop.vel.y *= -0.2
+                    drop.vel.x *= 0.7
+                    drop.vel.z *= 0.7
+                }
             }
 
             // 拾取检测
@@ -573,5 +576,31 @@ export class BlockInteractor {
             remaining.push(drop)
         }
         this.drops = remaining
+    }
+
+    /**
+     * 从当前位置向下扫描，找到最近的实心方块顶部；若无则返回地形高度
+     * @param {THREE.Vector3} pos
+     * @returns {{hit:boolean,y:number}}
+     */
+    findSupportBelow(pos) {
+        const bx = Math.floor(pos.x + 0.5)
+        const bz = Math.floor(pos.z + 0.5)
+        const startY = Math.floor(pos.y + 0.5)
+        const minY = this.world.terrain.settings.bedrockLevel
+
+        for (let y = startY; y >= minY; y--) {
+            const type = this.registry.get(bx, y, bz)
+            if (type && this.blockDefs.isSolid(type)) {
+                const belowType = this.registry.get(bx, y - 1, bz)
+                if (y <= minY || (belowType && this.blockDefs.isSolid(belowType))) {
+                    return { hit: true, y: y + 0.5 }
+                }
+                // 漂浮块（下方是空气/非实心），忽略继续向下找
+            }
+        }
+
+        const groundY = this.world.terrain.getHeight(bx, bz)
+        return { hit: false, y: groundY + 0.5 }
     }
 }

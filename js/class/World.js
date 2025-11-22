@@ -58,9 +58,163 @@ export class World {
             viewDistance: options.viewDistance || 6
         })
         this.chunkMeshes = new Map()
+        this.chunkWorker = null
+        this.pendingChunks = new Set()
+        this.useChunkWorker = true
+        this.decorWorker = null
+        this.useDecorWorker = true
+        this.decorRequestInFlight = false
+        this.initChunkWorker()
+        this.initDecorWorker()
 
         // 碰撞检测
         this.occupied = new Set()
+    }
+
+    /**
+     * 初始化用于生成chunk的Web Worker
+     */
+    initChunkWorker() {
+        if (!this.useChunkWorker) return
+        try {
+            this.chunkWorker = new Worker(new URL('../worker/terrainWorker.js', import.meta.url), { type: 'module' })
+            this.chunkWorker.onmessage = (event) => this.handleChunkWorkerMessage(event)
+            this.chunkWorker.onerror = (err) => {
+                console.error('Chunk worker error', err)
+                this.useChunkWorker = false
+                this.chunkWorker = null
+                this.pendingChunks.clear()
+            }
+        } catch (err) {
+            console.error('Chunk worker init failed', err)
+            this.useChunkWorker = false
+            this.chunkWorker = null
+        }
+    }
+
+    /**
+     * 初始化自然装饰生成 worker
+     */
+    initDecorWorker() {
+        if (!this.useDecorWorker) return
+        try {
+            this.decorWorker = new Worker(new URL('../worker/decorWorker.js', import.meta.url), { type: 'module' })
+            this.decorWorker.onmessage = (event) => this.handleDecorWorkerMessage(event)
+            this.decorWorker.onerror = (err) => {
+                console.error('Decor worker error', err)
+                this.decorWorker = null
+                this.useDecorWorker = false
+                this.decorRequestInFlight = false
+            }
+        } catch (err) {
+            console.error('Decor worker init failed', err)
+            this.decorWorker = null
+            this.useDecorWorker = false
+        }
+    }
+
+    /**
+     * Worker 消息处理
+     * @param {MessageEvent} event
+     */
+    handleChunkWorkerMessage(event) {
+        const { type, payload } = event.data || {}
+        if (type === 'chunkData') {
+            const { chunkKey, blocks } = payload
+            this.pendingChunks.delete(chunkKey)
+            for (const block of blocks) {
+                this.voxelBuilder.addBlock(block.type, block.x, block.y, block.z, null, chunkKey)
+            }
+            this.chunkManager.markLoaded(chunkKey)
+            this.renderChunk(chunkKey)
+        } else if (type === 'error') {
+            console.error('Chunk worker reported error:', payload?.message)
+            this.useChunkWorker = false
+            this.pendingChunks.clear()
+        }
+    }
+
+    /**
+     * 处理装饰 worker 消息
+     * @param {MessageEvent} event
+     */
+    handleDecorWorkerMessage(event) {
+        const { type, payload } = event.data || {}
+        if (type === 'decorationsData') {
+            this.decorRequestInFlight = false
+            const affectedChunks = new Set()
+            const blocks = payload?.blocks || []
+            for (const block of blocks) {
+                this.voxelBuilder.addBlock(block.type, block.x, block.y, block.z, null, block.chunkKey)
+                if (block.chunkKey) {
+                    affectedChunks.add(block.chunkKey)
+                }
+            }
+
+            if (Array.isArray(payload?.decorations)) {
+                this.decorations.push(...payload.decorations)
+            }
+
+            for (const chunkKey of affectedChunks) {
+                if (this.chunkManager.loaded.has(chunkKey)) {
+                    this.renderChunk(chunkKey)
+                }
+            }
+        } else if (type === 'error') {
+            console.error('Decor worker reported error:', payload?.message)
+            this.decorRequestInFlight = false
+            this.useDecorWorker = false
+        }
+    }
+
+    /**
+     * 向worker请求生成chunk
+     */
+    requestChunkFromWorker(cx, cz, key, minCoord, maxCoord) {
+        if (!this.chunkWorker) return false
+        if (this.pendingChunks.has(key)) return true
+        this.pendingChunks.add(key)
+        this.chunkWorker.postMessage({
+            type: 'generateChunk',
+            payload: {
+                chunkX: cx,
+                chunkZ: cz,
+                chunkKey: key,
+                minCoord,
+                maxCoord,
+                terrainSettings: this.terrain.getSettings()
+            }
+        })
+        return true
+    }
+
+    /**
+     * 请求装饰/树生成，成功则返回true
+     */
+    requestDecorationsFromWorker() {
+        if (!this.decorWorker || this.decorRequestInFlight) return false
+        this.decorRequestInFlight = true
+
+        const villages = this.villages.map(v => ({ x: v.x, z: v.z, radius: v.radius }))
+        const flowerCount = Math.floor(this.settings.grassCount * 0.25)
+        const cactusCount = Math.floor(this.settings.treeCount * 0.3)
+
+        this.decorWorker.postMessage({
+            type: 'generateDecorations',
+            payload: {
+                seed: this.seed,
+                worldSize: this.settings.worldSize,
+                terrainSettings: this.terrain.getSettings(),
+                counts: {
+                    grassCount: this.settings.grassCount,
+                    treeCount: this.settings.treeCount,
+                    flowerCount,
+                    cactusCount
+                },
+                villages
+            }
+        })
+        return true
     }
 
     /**
@@ -130,19 +284,13 @@ export class World {
     addNaturalDecorations() {
         console.log('Adding natural decorations...')
 
-        // 添加草丛
-        this.addGrass()
+        // 优先使用 worker 异步生成
+        if (this.useDecorWorker && this.requestDecorationsFromWorker()) {
+            console.log('Natural decorations requested via worker...')
+            return
+        }
 
-        // 添加树木
-        this.addTrees()
-
-        // 添加花簇
-        this.addFlowers()
-
-        // 添加仙人掌
-        this.addCactus()
-
-        console.log('Natural decorations added.')
+        console.error('Decor worker unavailable; decorations not generated.')
     }
 
     /**
@@ -329,6 +477,7 @@ export class World {
         for (const key of diff.toUnload) {
             this.unloadChunk(key)
             this.chunkManager.markUnloaded(key)
+            this.pendingChunks.delete(key)
             // 保留数据（未调用clearChunk），以便重新渲染
         }
 
@@ -342,16 +491,12 @@ export class World {
                 continue
             }
 
-            this.terrain.generateChunk(
-                this.voxelBuilder,
-                cx,
-                cz,
-                minCoord,
-                maxCoord,
-                key
-            )
-            this.chunkManager.markLoaded(key)
-            this.renderChunk(key)
+            // 优先使用worker生成
+            if (this.useChunkWorker && this.requestChunkFromWorker(cx, cz, key, minCoord, maxCoord)) {
+                continue
+            }
+
+            console.error('Chunk worker unavailable; chunk not generated', key)
         }
     }
 
@@ -444,6 +589,8 @@ export class World {
         this.decorations = []
         this.occupied.clear()
         this.voxelBuilder.clearAll()
+        this.pendingChunks.clear()
+        this.decorRequestInFlight = false
     }
 
     /**

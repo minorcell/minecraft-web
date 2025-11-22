@@ -18,14 +18,15 @@ export class PlayerController {
         this.terrain = terrain
         this.world = world
 
-        this.position = new THREE.Vector3(0, 10, 0)
+        const spawnY = this.terrain.getHeight(0, 0) + 3
+        this.position = new THREE.Vector3(0, spawnY, 0)
         this.velocity = new THREE.Vector3()
         this.direction = new THREE.Vector3()
         this.up = new THREE.Vector3(0, 1, 0)
 
         this.isOnGround = false
         this.isThirdPerson = false
-        this.speed = 5.2 // 移动速度降低约20%
+        this.speed = 4.2 // 再次降低约20%的移动速度
         this.jumpStrength = 6.5 // 跳跃力度略减，时间更短
         this.gravity = 22 // 增大重力让跳跃更快落地
         this.waterDrag = 0.4
@@ -195,6 +196,17 @@ export class PlayerController {
      * @param {number} dt - delta time in seconds
      */
     update(dt) {
+        // 限制大跨度帧导致的穿模/掉落
+        const clampedDt = Math.min(dt, 0.05)
+
+        // 如果当前chunk尚未生成，暂缓物理更新避免掉落虚空
+        const currentChunk = this.world.voxelBuilder.getChunkKeyFromPosition(this.position.x, this.position.z)
+        if (!this.world.chunkManager.loaded.has(currentChunk)) {
+            this.velocity.set(0, 0, 0)
+            this.updateCameraOffset()
+            return
+        }
+
         // 基于 yaw/pitch 计算前向
         const forward = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ'))
         forward.y = 0
@@ -222,16 +234,16 @@ export class PlayerController {
         const waterLevel = this.terrain.settings.waterLevel + 0.5
         const inWater = this.position.y < waterLevel
         if (inWater) {
-            this.velocity.multiplyScalar(1 - this.waterDrag * dt)
-            this.velocity.y += this.waterBuoyancy * dt
+            this.velocity.multiplyScalar(1 - this.waterDrag * clampedDt)
+            this.velocity.y += this.waterBuoyancy * clampedDt
         }
 
         // 重力
-        this.velocity.y -= this.gravity * dt
+        this.velocity.y -= this.gravity * clampedDt
 
         // 先水平移动并处理碰撞/台阶
         const sprint = this.keys['ShiftLeft'] ? 1.4 : 1.0
-        const moveSpeed = this.speed * sprint * dt
+        const moveSpeed = this.speed * sprint * clampedDt
         const desired = moveDir.clone().multiplyScalar(moveSpeed)
         let pos = this.position.clone()
 
@@ -242,7 +254,7 @@ export class PlayerController {
         pos = mz.pos
 
         // 垂直位移
-        const my = this.moveAxis(pos, 'y', this.velocity.y * dt, false)
+        const my = this.moveAxis(pos, 'y', this.velocity.y * clampedDt, false)
         pos = my.pos
         if (my.collided && this.velocity.y < 0) {
             this.velocity.y = 0

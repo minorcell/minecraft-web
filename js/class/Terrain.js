@@ -1,4 +1,4 @@
-import { createNoise2D } from 'simplex-noise'
+import { createNoise2D } from '../lib/simplex-noise.js'
 import { SeededRandom } from './Random.js'
 
 /**
