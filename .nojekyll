@@ -1,0 +1,2 @@
+# 这个文件告诉 GitHub Pages 不要使用 Jekyll 处理
+# 因为这是一个纯静态项目，使用 ES modules 和 CDN 依赖
