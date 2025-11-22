@@ -109,7 +109,7 @@ function generateVillageBuildings(village) {
 
     for (const building of buildings) {
         for (let i = 0; i < building.count; i++) {
-            const pos = findBuildingPosition(village, occupiedPositions)
+            const pos = findBuildingPosition(village, occupiedPositions, building.type)
             if (pos) {
                 switch (building.type) {
                     case 'townhall':
@@ -154,11 +154,45 @@ function generateVillageBuildings(village) {
     addVillageDecorations(village, occupiedPositions)
 }
 
-function findBuildingPosition(village, occupiedPositions) {
+function findBuildingPosition(village, occupiedPositions, buildingType) {
     const maxAttempts = 50
+
+    // Different building types have different preferred distances from center
+    let minDistance, maxDistance
+    switch (buildingType) {
+        case 'townhall':
+            minDistance = 0
+            maxDistance = village.radius * 0.2
+            break
+        case 'tower':
+            minDistance = village.radius * 0.5
+            maxDistance = village.radius * 0.8
+            break
+        case 'blacksmith':
+        case 'house':
+            minDistance = village.radius * 0.2
+            maxDistance = village.radius * 0.5
+            break
+        case 'barn':
+            minDistance = village.radius * 0.4
+            maxDistance = village.radius * 0.7
+            break
+        case 'farm':
+            minDistance = village.radius * 0.6
+            maxDistance = village.radius * 1.0
+            break
+        case 'storage':
+            minDistance = village.radius * 0.3
+            maxDistance = village.radius * 0.6
+            break
+        default:
+            minDistance = 5
+            maxDistance = village.radius
+    }
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const angle = (attempt / maxAttempts) * Math.PI * 2 + Math.random() * 0.5
-        const distance = 5 + Math.random() * (village.radius - 5)
+        const distance = minDistance + Math.random() * (maxDistance - minDistance)
         const x = Math.floor(village.x + Math.cos(angle) * distance)
         const z = Math.floor(village.z + Math.sin(angle) * distance)
         const y = getTerrainHeight(x, z)
@@ -174,18 +208,82 @@ function findBuildingPosition(village, occupiedPositions) {
 }
 
 function createVillagePaths(village, occupiedPositions) {
-    // Simple path generation between random points
-    const pathCount = 3
-    for (let i = 0; i < pathCount; i++) {
-        const angle = (i / pathCount) * Math.PI * 2
-        const distance = village.radius * 0.5
-        const x = Math.floor(village.x + Math.cos(angle) * distance)
-        const z = Math.floor(village.z + Math.sin(angle) * distance)
+    // Get all occupied positions (building centers)
+    const buildingPositions = Array.from(occupiedPositions).map(pos => {
+        const [x, z] = pos.split(',').map(Number)
+        return { x, z, y: getTerrainHeight(x, z) }
+    })
 
-        // Create a simple stone path
-        for (let px = -1; px <= 1; px++) {
-            for (let pz = -1; pz <= 1; pz++) {
-                builder.addBlock('stone', x + px, getTerrainHeight(x + px, z + pz), z + pz)
+    if (buildingPositions.length < 2) return
+
+    // Create paths connecting each building to the town center
+    for (const building of buildingPositions) {
+        createPath(village.x, village.z, building.x, building.z)
+    }
+
+    // Connect buildings to each other in a more connected network
+    for (let i = 0; i < buildingPositions.length; i++) {
+        for (let j = i + 1; j < buildingPositions.length; j++) {
+            const b1 = buildingPositions[i]
+            const b2 = buildingPositions[j]
+
+            // Only connect buildings that are relatively close
+            const distance = Math.sqrt((b1.x - b2.x) ** 2 + (b1.z - b2.z) ** 2)
+            if (distance < village.radius * 0.6) {
+                createPath(b1.x, b1.z, b2.x, b2.z)
+            }
+        }
+    }
+
+    // Add a central square
+    createSquare(village.x, village.z, 5)
+}
+
+function createPath(x1, z1, x2, z2) {
+    // Create a path using Bresenham's line algorithm (simplified)
+    const steps = Math.max(Math.abs(x2 - x1), Math.abs(z2 - z1))
+    const pathWidth = 2 // Wide enough to walk on
+
+    for (let i = 0; i <= steps; i++) {
+        const t = i / steps
+        const x = Math.floor(x1 + (x2 - x1) * t)
+        const z = Math.floor(z1 + (z2 - z1) * t)
+        const y = getTerrainHeight(x, z)
+
+        if (y > WATER_LEVEL) {
+            // Create path surface (stone)
+            for (let px = -pathWidth; px <= pathWidth; px++) {
+                for (let pz = -pathWidth; pz <= pathWidth; pz++) {
+                    const py = getTerrainHeight(x + px, z + pz)
+                    if (py > WATER_LEVEL && py <= y + 1) {
+                        builder.addBlock('stone', x + px, py, z + pz)
+                    }
+                }
+            }
+        }
+    }
+}
+
+function createSquare(centerX, centerZ, size) {
+    // Create a cobblestone square (village square)
+    for (let x = -size; x <= size; x++) {
+        for (let z = -size; z <= size; z++) {
+            const y = getTerrainHeight(centerX + x, centerZ + z)
+            if (y > WATER_LEVEL) {
+                builder.addBlock('stone', centerX + x, y, centerZ + z)
+            }
+        }
+    }
+
+    // Add a well in the center
+    for (let i = -1; i <= 1; i++) {
+        for (let j = -1; j <= 1; j++) {
+            if (Math.abs(i) === 1 || Math.abs(j) === 1) {
+                builder.addBlock('stone', centerX + i, getTerrainHeight(centerX + i, centerZ + j), centerZ + j)
+                builder.addBlock('stone', centerX + i, getTerrainHeight(centerX + i, centerZ + j) + 1, centerZ + j)
+            } else {
+                const y = getTerrainHeight(centerX + i, centerZ + j)
+                builder.addBlock('water', centerX + i, y + 1, centerZ + j)
             }
         }
     }
@@ -223,7 +321,7 @@ function addVillageDecorations(village, occupiedPositions) {
         }
     }
 
-    // Add small gardens near houses
+    // Add small gardens near houses (will become decorative gardens, not farms)
     const gardenCount = 5
     for (let i = 0; i < gardenCount; i++) {
         const angle = Math.random() * Math.PI * 2
@@ -233,19 +331,55 @@ function addVillageDecorations(village, occupiedPositions) {
         const y = getTerrainHeight(x, z)
 
         if (y > WATER_LEVEL) {
-            // Small garden plot
+            // Small garden plot with flowers
             for (let gx = -1; gx <= 1; gx++) {
                 for (let gz = -1; gz <= 1; gz++) {
                     if (Math.random() > 0.4) {
                         builder.addBlock('dirt', x + gx, y, z + gz)
-                        if (Math.random() > 0.5) {
-                            builder.addBlock('leaves', x + gx, y + 1, z + gz) // Small plants
+                        if (Math.random() > 0.6) {
+                            builder.addBlock('leaves', x + gx, y + 1, z + gz) // Flowers/plants
                         }
                     }
                 }
             }
         }
     }
+}
+
+// Add natural decorations like grass and flowers
+function addNaturalDecorations() {
+    console.log('Adding natural decorations...')
+    const grassCount = 1000 // Lots of grass patches
+
+    for (let i = 0; i < grassCount; i++) {
+        const x = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 2)
+        const z = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 2)
+        const y = getTerrainHeight(x, z)
+
+        // Only add grass on grass blocks, not in water or on buildings
+        if (y > WATER_LEVEL && y < SNOW_LEVEL && Math.random() > 0.7) {
+            // Add grass tufts
+            const tuftCount = 1 + Math.floor(Math.random() * 3)
+            for (let t = 0; t < tuftCount; t++) {
+                const offsetX = Math.floor((Math.random() - 0.5) * 3)
+                const offsetZ = Math.floor((Math.random() - 0.5) * 3)
+                const groundY = getTerrainHeight(x + offsetX, z + offsetZ)
+
+                if (groundY > WATER_LEVEL && groundY < SNOW_LEVEL) {
+                    // Add grass block (representing grass tuft)
+                    builder.addBlock('leaves', x + offsetX, groundY + 1, z + offsetZ)
+
+                    // Occasionally add flowers
+                    if (Math.random() > 0.8) {
+                        // Different colored flowers (using leaves with different variants)
+                        builder.addBlock('leaves', x + offsetX, groundY + 2, z + offsetZ)
+                    }
+                }
+            }
+        }
+    }
+
+    console.log('Natural decorations added.')
 }
 
 // ===== BUILDING TYPES =====
@@ -407,33 +541,51 @@ function createBarn(x, y, z) {
 }
 
 function createFarm(x, y, z) {
-    const width = 8
-    const depth = 8
+    const width = 9
+    const depth = 9
 
     if (isOccupied(x, z, width, depth)) return false
     markOccupied(x, z, width, depth)
 
-    // Fenced area
+    // Fenced wheat field like Minecraft
     for (let i = -width / 2; i < width / 2; i++) {
         for (let j = -depth / 2; j < depth / 2; j++) {
-            // Border fence
+            // Border fence (wooden fence)
             if (i === -width / 2 || i === width / 2 - 1 || j === -depth / 2 || j === depth / 2 - 1) {
+                // Fence posts
                 builder.addBlock('wood', x + i, y + 1, z + j)
-                if (Math.random() > 0.5) {
-                    builder.addBlock('wood', x + i, y + 2, z + j)
-                }
+                builder.addBlock('wood', x + i, y + 2, z + j)
             } else {
-                // Farmland
-                if (Math.random() > 0.3) {
+                // Wheat field - arrange in neat rows like Minecraft
+                const isWaterChannel = (i % 3 === 0 && j % 3 === 0) // Water channels for irrigation
+
+                if (isWaterChannel) {
+                    // Water channel for irrigation
                     builder.addBlock('dirt', x + i, y, z + j)
-                    if (Math.random() > 0.5) {
-                        builder.addBlock('grass', x + i, y + 1, z + j) // Crops
-                    }
+                    builder.addBlock('water', x + i, y + 1, z + j)
                 } else {
-                    builder.addBlock('grass', x + i, y, z + j)
+                    // Farmland
+                    builder.addBlock('dirt', x + i, y, z + j)
+
+                    // Plant wheat in organized rows
+                    if ((i + j) % 2 === 0) {
+                        // Wheat at different growth stages
+                        const height = 1 + Math.floor(Math.random() * 2)
+                        for (let h = 1; h <= height; h++) {
+                            builder.addBlock('leaves', x + i, y + h, z + j) // Using leaves as wheat
+                        }
+                    }
                 }
             }
         }
+    }
+
+    // Add a simple farm hut
+    const hutX = x + width / 2 + 2
+    const hutZ = z
+    const hutY = getTerrainHeight(hutX, hutZ)
+    if (hutY > WATER_LEVEL) {
+        createStorage(hutX, hutY, hutZ)
     }
 
     return true
@@ -634,6 +786,9 @@ for (let x = -WORLD_SIZE; x < WORLD_SIZE; x++) {
 
 // ===== Villages =====
 generateVillages()
+
+// ===== Decorations (Grass, Flowers, etc.) =====
+addNaturalDecorations()
 
 // Trees (reduced to make villages more prominent)
 let treeCount = 0
