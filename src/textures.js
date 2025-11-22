@@ -296,37 +296,27 @@ export class TextureFactory {
                 const randWood = this.seededRandom(seed * 2 + 1)
                 const randDetail = this.seededRandom(seed * 3 + 2)
 
-                // 添加木结（圆形深色区域）
+                // 添加木结（仅亮斑，去掉深色边缘）
                 for (let i = 0; i < 3; i++) {
                     const x = randWood() * 64
                     const y = randWood() * 64
                     const radius = 4 + randWood() * 8
-                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
-                    gradient.addColorStop(0, '#5a3515')
-                    gradient.addColorStop(0.7, '#4a2a0a')
-                    gradient.addColorStop(1, '#2a1505')
-                    ctx.fillStyle = gradient
-                    ctx.globalAlpha = 0.7
+                    // 只保留木结中心的亮斑，去掉深色边缘
+                    ctx.fillStyle = '#c9a070'
+                    ctx.globalAlpha = 0.4
                     ctx.beginPath()
-                    ctx.arc(x, y, radius, 0, Math.PI * 2)
-                    ctx.fill()
-
-                    // 木结中心的亮斑
-                    ctx.globalAlpha = 0.3
-                    ctx.fillStyle = '#a07a50'
-                    ctx.beginPath()
-                    ctx.arc(x + radius * 0.2, y - radius * 0.2, radius * 0.4, 0, Math.PI * 2)
+                    ctx.arc(x + radius * 0.2, y - radius * 0.2, radius * 0.5, 0, Math.PI * 2)
                     ctx.fill()
                 }
 
-                // 主木纹（更自然的曲线）
-                ctx.fillStyle = '#6a2400'
+                // 木纹方向的高光（用亮色替代深色藤条）
+                ctx.fillStyle = '#d4a070'
+                ctx.globalAlpha = 0.15
                 for (let i = 0; i < 8; i++) {
-                    const baseX = randWood() * 64  // 改为使用 randWood 避免作用域问题
-                    ctx.globalAlpha = 0.6 + randDetail() * 0.3
+                    const baseX = randWood() * 64
                     const width = 1 + randDetail() * 2
 
-                    // 绘制S形曲线
+                    // 绘制S形高光线
                     ctx.beginPath()
                     for (let y = 0; y <= 64; y += 2) {
                         const offset = Math.sin((y + i * 8) * 0.15) * 3 +
@@ -339,22 +329,22 @@ export class TextureFactory {
                     ctx.stroke()
                 }
 
-                // 细木纹（垂直线条）
-                ctx.fillStyle = '#5a3515'
-                ctx.globalAlpha = 0.25  // 降低透明度使纹理更淡
-                for (let i = 0; i < 15; i++) {
+                // 细木纹（用很淡的线条替代深色线条）
+                ctx.fillStyle = '#b88a60'
+                ctx.globalAlpha = 0.08  // 大幅降低透明度
+                for (let i = 0; i < 8; i++) {  // 减少数量从15到8
                     const x = randDetail() * 64
-                    const height = 20 + randDetail() * 44
-                    const y = randDetail() * 44
+                    const height = 15 + randDetail() * 30
+                    const y = randDetail() * 49
                     ctx.fillRect(x, y, 1, height)
                 }
 
-                // 木纹方向的明暗变化（去掉深色条纹，仅保留微妙变化）
-                ctx.globalAlpha = 0.03  // 进一步降低透明度
-                for (let i = 0; i < 6; i++) {
+                // 木纹方向的明暗变化（用很淡的亮色）
+                ctx.globalAlpha = 0.02
+                for (let i = 0; i < 4; i++) {  // 减少数量从6到4
                     const x = randWood() * 64
                     const gradient = ctx.createLinearGradient(x, 0, x + 8, 64)
-                    gradient.addColorStop(0, 'rgba(140, 100, 70, 0.2)')  // 使用很淡的浅棕色替代深色
+                    gradient.addColorStop(0, 'rgba(180, 140, 100, 0.3)')  // 使用很淡的浅棕色
                     gradient.addColorStop(1, 'transparent')
                     ctx.fillStyle = gradient
                     ctx.fillRect(x, 0, 8, 64)
