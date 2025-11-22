@@ -26,13 +26,6 @@ export class RenderCoordinator {
         if (!this.chunkMeshes.has(chunkKey)) return
         for (const mesh of this.chunkMeshes.get(chunkKey)) {
             this.scene.remove(mesh)
-            if (mesh.geometry?.dispose) mesh.geometry.dispose()
-            const material = mesh.material
-            if (Array.isArray(material)) {
-                material.forEach(mat => mat?.dispose?.())
-            } else {
-                material?.dispose?.()
-            }
         }
         this.chunkMeshes.delete(chunkKey)
     }

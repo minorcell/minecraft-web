@@ -28,6 +28,7 @@ export class VoxelBuilder {
         this.materialsCache = new Map()
 
         this.dummy = new THREE.Object3D()
+        this.sharedGeometry = this.geometry // 共享几何以避免重复克隆
     }
 
     /**
@@ -143,10 +144,8 @@ export class VoxelBuilder {
             if (!mats) continue
 
             for (const [variant, variantInstances] of Object.entries(groups)) {
-                const baseMat = mats[variant % mats.length]
-                const material = Array.isArray(baseMat) ? baseMat.map(m => m.clone()) : baseMat.clone()
-                const geo = this.geometry.clone()
-                const mesh = new THREE.InstancedMesh(geo, material, variantInstances.length)
+                const material = mats[variant % mats.length]
+                const mesh = new THREE.InstancedMesh(this.sharedGeometry, material, variantInstances.length)
                 for (let i = 0; i < variantInstances.length; i++) {
                     mesh.setMatrixAt(i, variantInstances[i].matrix)
                 }
@@ -191,14 +190,15 @@ export class VoxelBuilder {
         let variants = []
 
         if (top && bottom && side) {
-            variants.push([
+            const shared = [
                 mat(side),
                 mat(side),
                 mat(top),
                 mat(bottom),
                 mat(side),
                 mat(side)
-            ])
+            ]
+            variants.push(shared)
         } else if (allTex) {
             variants.push(mat(allTex))
         } else {
