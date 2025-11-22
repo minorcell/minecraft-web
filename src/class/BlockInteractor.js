@@ -607,6 +607,8 @@ export class BlockInteractor {
                 this.updateProgressUI(progress)
                 this.updateCrackOverlay(progress)
                 if (progress >= 1) {
+                    // 在摧毁方块之前先隐藏裂纹覆盖层
+                    this.hideCrackOverlay()
                     this.breakBlockInstant(this.currentTarget)
                     this.stopBreaking()
                 }
