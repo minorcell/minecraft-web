@@ -46,6 +46,15 @@ export class VoxelBuilder {
      * @returns {number}
      */
     getVariantFromHash(type, x, y, z) {
+        // 水方块使用更丰富的变体逻辑（基于对角线位置）
+        if (type === 'water') {
+            // 使用 (x+z) 和 (x-z) 的组合增加变化
+            const diag1 = (x + z) % this.variants
+            const diag2 = (x - z + 1000) % this.variants
+            const combined = (diag1 * 2 + diag2) % this.variants
+            return combined
+        }
+
         // 通过整数混合减少碰撞，并保持跨平台一致
         let h = this.variantSeed
         h ^= SeededRandom.hash(type)

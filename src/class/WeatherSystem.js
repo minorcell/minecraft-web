@@ -337,7 +337,7 @@ export class WeatherSystem {
         if (biome === 'desert' || biome === 'beach') {
             table.push(['clear', 0.7], ['rain', 0.2], ['storm', 0.1])
         } else if (biome === 'snow' || biome === 'taiga') {
-            table.push(['clear', 0.35], ['snow', 0.45], ['storm', 0.2])
+            table.push(['clear', 0.6], ['snow', 0.2], ['storm', 0.2])
         } else {
             table.push(['clear', 0.45], ['rain', 0.35], ['storm', 0.15], ['snow', 0.05])
         }

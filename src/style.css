@@ -66,6 +66,28 @@ canvas {
     user-select: none;
 }
 
+#hotbar-label {
+    position: absolute;
+    bottom: 102px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 12px;
+    background: var(--hud-bg);
+    border: 2px solid var(--hud-border-dark);
+    border-radius: 8px;
+    color: #f5e6b3;
+    font-family: var(--hud-font);
+    font-size: 13px;
+    letter-spacing: 0.3px;
+    box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, 0.55),
+        0 6px 14px rgba(0, 0, 0, 0.28);
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
 .hud-slot {
     position: relative;
     width: 48px;

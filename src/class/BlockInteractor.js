@@ -44,6 +44,7 @@ export class BlockInteractor {
         this.textureFactory = new TextureFactory()
         this.previewRenderer = new BlockPreviewRenderer(this.blockDefs, this.textureFactory)
         this.hotbarUI = this.createHotbarUI()
+        this.hotbarLabel = this.createHotbarLabel()
         this.inventoryUI = this.createInventoryUI()
         this.heldItem = null
         this.heldIcon = this.createHeldIcon()
@@ -302,11 +303,21 @@ export class BlockInteractor {
         return bar
     }
 
+    createHotbarLabel() {
+        const label = document.createElement('div')
+        label.id = 'hotbar-label'
+        label.className = 'hotbar-label'
+        label.textContent = ''
+        document.body.appendChild(label)
+        return label
+    }
+
     updateHotbarUI() {
         this.hotbarSlots.forEach((slot, idx) => {
             const slotData = this.inventory.getSlot(idx)
             this.renderSlot(slot, slotData, idx === this.selectedIndex, `${idx + 1}`)
         })
+        this.updateHotbarLabel()
     }
 
     createInventoryUI() {
@@ -451,6 +462,7 @@ export class BlockInteractor {
         }
         count.textContent = this.heldItem.count > 1 ? this.heldItem.count : ''
         holder.style.display = 'block'
+        this.updateHotbarLabel()
     }
 
     stashHeldItem() {
@@ -459,7 +471,22 @@ export class BlockInteractor {
         if (success) {
             this.heldItem = null
             this.updateInventoryUI()
+            this.updateHotbarLabel()
         }
+    }
+
+    updateHotbarLabel() {
+        if (!this.hotbarLabel) return
+        const slot = this.inventory.getSlot(this.selectedIndex)
+        if (!slot) {
+            this.hotbarLabel.textContent = ''
+            this.hotbarLabel.style.opacity = '0'
+            return
+        }
+        const def = this.blockDefs.get(slot.type)
+        const name = def?.name || slot.type
+        this.hotbarLabel.textContent = name
+        this.hotbarLabel.style.opacity = '1'
     }
 
     /**
@@ -544,6 +571,7 @@ export class BlockInteractor {
                 if (num >= 1 && num <= this.hotbarSize) {
                     this.selectedIndex = num - 1
                     this.updateHotbarUI()
+                    this.updateHotbarLabel()
                 }
             }
 
@@ -598,6 +626,7 @@ export class BlockInteractor {
             const dir = Math.sign(e.deltaY)
             this.selectedIndex = (this.selectedIndex + dir + this.hotbarSize) % this.hotbarSize
             this.updateHotbarUI()
+            this.updateHotbarLabel()
         })
 
         window.addEventListener('mousemove', (e) => {
