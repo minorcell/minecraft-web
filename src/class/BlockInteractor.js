@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { TextureFactory } from '../textures.js'
 
 /**
  * 方块交互管理：射线拾取、高亮、破坏/放置、热键栏、背包、说明书
@@ -50,6 +51,7 @@ export class BlockInteractor {
         this.drops = []
         this.dropGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35)
         this.dropMats = {}
+        this.textureFactory = new TextureFactory()
 
         this.initInput()
         this.updateInventoryUI()
@@ -140,6 +142,54 @@ export class BlockInteractor {
             water: { color: '#2277dd', secondary: '#1256aa', short: '水' },
             default: { color: '#888', secondary: '#555', short: '?' }
         }
+    }
+
+    createDropMaterial(type) {
+        const textures = this.blockDefs.getTextures(type) || {}
+        const opts = this.blockDefs.getMaterialOptions(type)
+        const meta = this.blockMeta[type] || this.blockMeta.default
+
+        const makeMaterial = (texName) => {
+            if (!texName) {
+                return new THREE.MeshStandardMaterial({
+                    color: meta.color,
+                    emissive: meta.secondary,
+                    emissiveIntensity: 0.05,
+                    roughness: 0.9,
+                    metalness: 0.0
+                })
+            }
+            const tex = this.textureFactory.createTexture(texName, 0)
+            return new THREE.MeshStandardMaterial({
+                map: tex,
+                transparent: opts.transparent,
+                opacity: opts.opacity,
+                roughness: 0.95,
+                metalness: 0.0
+            })
+        }
+
+        if (textures.all) {
+            const mat = makeMaterial(textures.all)
+            return [mat, mat, mat, mat, mat, mat]
+        }
+
+        const sideTex = textures.side || textures.all || textures.top || textures.bottom || null
+        const topTex = textures.top || sideTex
+        const bottomTex = textures.bottom || sideTex
+
+        const sideMat = makeMaterial(sideTex)
+        const topMat = makeMaterial(topTex)
+        const bottomMat = makeMaterial(bottomTex)
+
+        return [
+            sideMat,
+            sideMat,
+            topMat,
+            bottomMat,
+            sideMat,
+            sideMat
+        ]
     }
 
     createIcon(style) {
@@ -357,12 +407,7 @@ export class BlockInteractor {
 
     spawnDrop(type, x, y, z) {
         if (!this.dropMats[type]) {
-            const meta = this.blockMeta[type] || this.blockMeta.default
-            this.dropMats[type] = new THREE.MeshStandardMaterial({
-                color: meta.color,
-                emissive: meta.secondary,
-                emissiveIntensity: 0.1
-            })
+            this.dropMats[type] = this.createDropMaterial(type)
         }
         const mesh = new THREE.Mesh(this.dropGeo, this.dropMats[type])
         mesh.position.set(x, y, z)

@@ -8,3 +8,20 @@ body {
 canvas {
     display: block;
 }
+
+#weather-indicator {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.38);
+    color: #f4f8ff;
+    font-family: monospace;
+    font-size: 14px;
+    border-radius: 8px;
+    letter-spacing: 0.5px;
+    user-select: none;
+    pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(2px);
+}

@@ -4,6 +4,7 @@ import { PlayerController } from './class/Player.js'
 import { BlockInteractor } from './class/BlockInteractor.js'
 import { Inventory } from './class/Inventory.js'
 import { GuideBook } from './class/GuideBook.js'
+import { WeatherSystem } from './class/WeatherSystem.js'
 
 // ====== 场景设置 ======
 const scene = new THREE.Scene()
@@ -78,8 +79,17 @@ const interactor = new BlockInteractor({
     player
 })
 
+const weather = new WeatherSystem({
+    scene,
+    camera,
+    terrain: world.terrain,
+    ambientLight,
+    dirLight
+})
+
 // 生成世界
 world.generate()
+weather.update(0, player.position)
 
 // ====== 显示世界信息 =====
 console.log('========== 世界生成完成 ==========')
@@ -95,6 +105,7 @@ function animate() {
 
     player.update(dt)
     interactor.update()
+    weather.update(dt, player.position)
 
     // 按玩家位置加载chunk
     world.updateChunks(player.position)
