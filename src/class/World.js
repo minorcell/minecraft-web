@@ -79,6 +79,7 @@ export class World {
         this.lastChunkCheckTime = 0
         this.chunkCheckInterval = 0.12 // seconds
         this.maxChunkRequestsPerTick = 4
+        this.lowDetailRadius = this.terrain.settings.chunkSize * Math.max(1, (this.chunkManager.viewDistance - 2))
     }
 
     applyChunkData(payload) {
@@ -470,7 +471,8 @@ export class World {
             }
 
             // 优先使用worker生成
-            if (this.useChunkWorker && this.requestChunkFromWorker(cx, cz, key, minCoord, maxCoord)) {
+            const lowDetail = item.distSq > this.lowDetailRadius * this.lowDetailRadius
+            if (this.useChunkWorker && this.requestChunkFromWorker(cx, cz, key, minCoord, maxCoord, { lowDetail })) {
                 issued++
                 continue
             }

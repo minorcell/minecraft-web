@@ -10,7 +10,7 @@ import { Terrain } from '../class/Terrain.js'
  * @param {string} chunkKey
  * @returns {Array<{type:string,x:number,y:number,z:number,chunkKey:string}>}
  */
-function estimateBlockCount(terrain, startX, endX, startZ, endZ, minCoord, maxCoord) {
+function estimateBlockCount(terrain, startX, endX, startZ, endZ, minCoord, maxCoord, lowDetail = false) {
     let total = 0
     const bedrock = terrain.settings.bedrockLevel
     const water = terrain.settings.waterLevel
@@ -19,7 +19,7 @@ function estimateBlockCount(terrain, startX, endX, startZ, endZ, minCoord, maxCo
         for (let z = startZ; z < endZ; z++) {
             if (z < minCoord || z > maxCoord) continue
             const surfaceY = terrain.getHeight(x, z)
-            const underground = Math.max(0, surfaceY - bedrock)
+            const underground = lowDetail ? 0 : Math.max(0, surfaceY - bedrock)
             const surface = 1
             const waterLayers = surfaceY < water ? (water - surfaceY) : 0
             total += underground + surface + waterLayers
@@ -28,13 +28,13 @@ function estimateBlockCount(terrain, startX, endX, startZ, endZ, minCoord, maxCo
     return total
 }
 
-function generateChunkBlocksPacked(terrain, chunkX, chunkZ, minCoord, maxCoord, blockIds) {
+function generateChunkBlocksPacked(terrain, chunkX, chunkZ, minCoord, maxCoord, blockIds, lowDetail = false) {
     const chunkSize = terrain.settings.chunkSize
     const startX = chunkX * chunkSize
     const startZ = chunkZ * chunkSize
     const endX = startX + chunkSize
     const endZ = startZ + chunkSize
-    const total = estimateBlockCount(terrain, startX, endX, startZ, endZ, minCoord, maxCoord)
+    const total = estimateBlockCount(terrain, startX, endX, startZ, endZ, minCoord, maxCoord, lowDetail)
 
     const xs = new Int16Array(total)
     const ys = new Int16Array(total)
@@ -62,23 +62,25 @@ function generateChunkBlocksPacked(terrain, chunkX, chunkZ, minCoord, maxCoord, 
             }
 
             // ===== 1. 地下层（从底部到地表） =====
-            for (let y = bedrock; y < surfaceY; y++) {
-                const depthFromSurface = surfaceY - y
-                let undergroundType
-                if (y <= bedrock + 1) {
-                    undergroundType = 'bedrock'
-                } else if (surfaceY < water) {
-                    // 水下地形：地下层是 sand/stone
-                    undergroundType = (depthFromSurface > 7) ? 'stone' : 'sand'
-                } else {
-                    // 陆地地形：地下层是 dirt/stone
-                    undergroundType = (depthFromSurface > 7) ? 'stone' : 'dirt'
+            if (!lowDetail) {
+                for (let y = bedrock; y < surfaceY; y++) {
+                    const depthFromSurface = surfaceY - y
+                    let undergroundType
+                    if (y <= bedrock + 1) {
+                        undergroundType = 'bedrock'
+                    } else if (surfaceY < water) {
+                        // 水下地形：地下层是 sand/stone
+                        undergroundType = (depthFromSurface > 7) ? 'stone' : 'sand'
+                    } else {
+                        // 陆地地形：地下层是 dirt/stone
+                        undergroundType = (depthFromSurface > 7) ? 'stone' : 'dirt'
+                    }
+                    xs[idx] = x
+                    ys[idx] = y
+                    zs[idx] = z
+                    types[idx] = typeToIndex.get(undergroundType) ?? 0
+                    idx++
                 }
-                xs[idx] = x
-                ys[idx] = y
-                zs[idx] = z
-                types[idx] = typeToIndex.get(undergroundType) ?? 0
-                idx++
             }
 
             // ===== 2. 地表方块 =====
@@ -127,9 +129,9 @@ self.onmessage = (event) => {
 
     if (type === 'generateChunk') {
         try {
-            const { chunkX, chunkZ, minCoord, maxCoord, chunkKey, terrainSettings, blockIds = [] } = payload
+            const { chunkX, chunkZ, minCoord, maxCoord, chunkKey, terrainSettings, blockIds = [], lowDetail = false } = payload
             const terrain = ensureTerrain(terrainSettings)
-            const packed = generateChunkBlocksPacked(terrain, chunkX, chunkZ, minCoord, maxCoord, blockIds)
+            const packed = generateChunkBlocksPacked(terrain, chunkX, chunkZ, minCoord, maxCoord, blockIds, lowDetail)
             self.postMessage(
                 { type: 'chunkData', payload: { chunkKey, blockIds, ...packed } },
                 [packed.xs.buffer, packed.ys.buffer, packed.zs.buffer, packed.types.buffer]

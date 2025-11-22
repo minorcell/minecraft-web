@@ -58,7 +58,7 @@ export class WorkerCoordinator {
         }
     }
 
-    requestChunk(cx, cz, key, minCoord, maxCoord, settings) {
+    requestChunk(cx, cz, key, minCoord, maxCoord, settings, options = {}) {
         if (!this.chunkWorker) this.initChunkWorker()
         if (!this.chunkWorker) return false
         if (this.pendingChunks.has(key)) return true
@@ -72,7 +72,8 @@ export class WorkerCoordinator {
                 minCoord,
                 maxCoord,
                 terrainSettings: settings || this.terrainSettings,
-                blockIds: this.blockIds
+                blockIds: this.blockIds,
+                lowDetail: options.lowDetail || false
             }
         })
         return true
