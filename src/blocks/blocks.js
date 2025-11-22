@@ -46,7 +46,7 @@ export const blocks = [
   },
   {
     id: 'leaves',
-    name: '树叶',
+    name: '橡树叶',
     hardness: 0.2,
     solid: true,
     breakable: true,
@@ -55,6 +55,42 @@ export const blocks = [
     opacity: 0.7,
     renderLayer: 'alpha',
     textures: { all: 'leaves' }
+  },
+  {
+    id: 'spruce_leaves',
+    name: '云杉叶',
+    hardness: 0.2,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'spruce_leaves', count: 1 }],
+    transparent: true,
+    opacity: 0.7,
+    renderLayer: 'alpha',
+    textures: { all: 'spruce_leaves' }
+  },
+  {
+    id: 'birch_leaves',
+    name: '桦树叶',
+    hardness: 0.2,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'birch_leaves', count: 1 }],
+    transparent: true,
+    opacity: 0.7,
+    renderLayer: 'alpha',
+    textures: { all: 'birch_leaves' }
+  },
+  {
+    id: 'jungle_leaves',
+    name: '丛林叶',
+    hardness: 0.2,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'jungle_leaves', count: 1 }],
+    transparent: true,
+    opacity: 0.7,
+    renderLayer: 'alpha',
+    textures: { all: 'jungle_leaves' }
   },
   {
     id: 'glass',

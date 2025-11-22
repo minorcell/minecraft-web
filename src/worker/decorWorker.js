@@ -16,7 +16,15 @@ const isNearVillage = (x, z, villages = [], minDistance = 25) => {
 const getTreeStyle = (biome, rand) => {
     if (biome === 'taiga' || biome === 'snow') return 'spruce'
     if (biome === 'desert') return 'shrub'
-    return rand.float() > 0.8 ? 'spruce' : 'oak'
+    if (biome === 'forest') {
+        // 在森林生物群系中随机选择不同树种
+        const r = rand.float()
+        if (r < 0.5) return 'oak'
+        if (r < 0.75) return 'birch'
+        return 'jungle'
+    }
+    // 默认在平原生物群系中
+    return rand.float() > 0.7 ? (rand.float() > 0.5 ? 'birch' : 'spruce') : 'oak'
 }
 
 const buildOak = (addBlock, x, y, z, height) => {
@@ -48,13 +56,53 @@ const buildSpruce = (addBlock, x, y, z, height) => {
         for (let i = -radius; i <= radius; i++) {
             for (let j = -radius; j <= radius; j++) {
                 if (Math.abs(i) + Math.abs(j) <= radius + 1) {
-                    addBlock('leaves', x + i, leafY, z + j)
+                    addBlock('spruce_leaves', x + i, leafY, z + j)
                 }
             }
         }
     }
 
-    addBlock('leaves', x, y + h + 1, z)
+    addBlock('spruce_leaves', x, y + h + 1, z)
+}
+
+const buildBirch = (addBlock, x, y, z, height) => {
+    for (let h = 1; h <= height; h++) {
+        addBlock('wood', x, y + h, z)
+    }
+
+    // 桦树有更圆的树冠
+    for (let h = height - 1; h <= height + 3; h++) {
+        for (let i = -3; i <= 3; i++) {
+            for (let j = -3; j <= 3; j++) {
+                const dist = Math.abs(i) + Math.abs(j)
+                if (dist < 4) {
+                    if (i === 0 && j === 0 && h < height + 2) continue
+                    addBlock('birch_leaves', x + i, y + h, z + j)
+                }
+            }
+        }
+    }
+}
+
+const buildJungle = (addBlock, x, y, z, height) => {
+    // 丛林树更高
+    const jungleHeight = height + 2
+    for (let h = 1; h <= jungleHeight; h++) {
+        addBlock('wood', x, y + h, z)
+    }
+
+    // 丛林树有更大更密的树冠
+    for (let h = jungleHeight - 1; h <= jungleHeight + 4; h++) {
+        for (let i = -4; i <= 4; i++) {
+            for (let j = -4; j <= 4; j++) {
+                const dist = Math.abs(i) + Math.abs(j)
+                if (dist < 5) {
+                    if (i === 0 && j === 0 && h < jungleHeight + 2) continue
+                    addBlock('jungle_leaves', x + i, y + h, z + j)
+                }
+            }
+        }
+    }
 }
 
 const buildShrub = (addBlock, x, y, z, rand) => {
@@ -180,6 +228,10 @@ function generateDecorations(payload) {
 
             if (style === 'spruce') {
                 buildSpruce(addBlock, x, y, z, height)
+            } else if (style === 'birch') {
+                buildBirch(addBlock, x, y, z, height)
+            } else if (style === 'jungle') {
+                buildJungle(addBlock, x, y, z, height)
             } else if (style === 'shrub') {
                 buildShrub(addBlock, x, y, z, rand)
             } else {

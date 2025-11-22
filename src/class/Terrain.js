@@ -14,12 +14,22 @@ export class Terrain {
             bedrockLevel: settings.bedrockLevel || -12,
             waterLevel: settings.waterLevel || -5,
             sandLevel: settings.sandLevel || 3,
-            snowLevel: settings.snowLevel || 12,
+            snowLevel: settings.snowLevel || 13,
             groundDepth: settings.groundDepth || 10,
-            noiseScale1: settings.noiseScale1 || 0.01,
-            noiseScale2: settings.noiseScale2 || 0.05,
-            noiseAmplitude1: settings.noiseAmplitude1 || 10,
-            noiseAmplitude2: settings.noiseAmplitude2 || 2,
+            noiseScale1: settings.noiseScale1 || 0.008,
+            noiseScale2: settings.noiseScale2 || 0.035,
+            noiseAmplitude1: settings.noiseAmplitude1 || 14,
+            noiseAmplitude2: settings.noiseAmplitude2 || 4,
+            noiseScale3: settings.noiseScale3 || 0.12,
+            noiseAmplitude3: settings.noiseAmplitude3 || 2,
+            continentalScale: settings.continentalScale || 0.0015,
+            continentalAmplitude: settings.continentalAmplitude || 14,
+            erosionScale: settings.erosionScale || 0.01,
+            peakScale: settings.peakScale || 0.05,
+            peakAmplitude: settings.peakAmplitude || 5,
+            riverScale: settings.riverScale || 0.012,
+            riverDepth: settings.riverDepth || 8,
+            riverThreshold: settings.riverThreshold || 0.035,
             chunkSize: settings.chunkSize || 16,
             // 生物群系噪声参数
             temperatureScale: settings.temperatureScale || 0.005,
@@ -35,6 +45,11 @@ export class Terrain {
         // 额外的气候噪声（使用偏移后的随机源，避免高度噪声相关性）
         this.temperatureNoise = createNoise2D(() => this.random.cloneWithOffset(101).float())
         this.moistureNoise = createNoise2D(() => this.random.cloneWithOffset(202).float())
+        this.extraNoise = createNoise2D(() => this.random.cloneWithOffset(303).float())
+        this.continentalNoise = createNoise2D(() => this.random.cloneWithOffset(404).float())
+        this.erosionNoise = createNoise2D(() => this.random.cloneWithOffset(505).float())
+        this.peakNoise = createNoise2D(() => this.random.cloneWithOffset(606).float())
+        this.riverNoise = createNoise2D(() => this.random.cloneWithOffset(707).float())
 
         // 地形高度缓存（可选优化）
         this.heightCache = new Map()
@@ -56,7 +71,28 @@ export class Terrain {
         // 多层噪声生成细节
         const h1 = this.noise2D(x * this.settings.noiseScale1, z * this.settings.noiseScale1) * this.settings.noiseAmplitude1
         const h2 = this.noise2D(x * this.settings.noiseScale2, z * this.settings.noiseScale2) * this.settings.noiseAmplitude2
-        const height = Math.floor(h1 + h2)
+        const h3 = this.extraNoise(x * this.settings.noiseScale3, z * this.settings.noiseScale3) * this.settings.noiseAmplitude3
+        // 大尺度海陆基线
+        const contRaw = this.continentalNoise(x * this.settings.continentalScale, z * this.settings.continentalScale)
+        const continentalBase = contRaw * this.settings.continentalAmplitude
+        // 侵蚀控制起伏强度
+        const erosionRaw = this.erosionNoise(x * this.settings.erosionScale, z * this.settings.erosionScale)
+        // map [-1,1] -> [0.5,1.5]
+        const erosionMul = 0.5 + (erosionRaw + 1) * 0.5
+        // 山峰 ridge，仅在大陆高区
+        const peakRaw = this.peakNoise(x * this.settings.peakScale, z * this.settings.peakScale)
+        const ridge = Math.pow(1 - Math.abs(peakRaw), 2) * this.settings.peakAmplitude
+        const peakWeight = Math.max(0, Math.min(1, (contRaw - 0.25) / 0.55)) * 0.45
+        const peaks = (ridge - this.settings.peakAmplitude * 0.4) * peakWeight
+        // 河道切削
+        const riverVal = Math.abs(this.riverNoise(x * this.settings.riverScale, z * this.settings.riverScale))
+        const riverCut = riverVal < this.settings.riverThreshold
+            ? (this.settings.riverThreshold - riverVal) / this.settings.riverThreshold * this.settings.riverDepth
+            : 0
+
+        const detail = h2 + h3 + peaks
+        const baseHeight = continentalBase + erosionMul * detail + h1
+        const height = Math.floor(baseHeight - riverCut)
 
         // 缓存结果
         this.heightCache.set(cacheKey, height)
@@ -266,7 +302,7 @@ export class Terrain {
             return { name: 'desert', ...climate }
         }
 
-        if (climate.temperature < 0.35 && h >= this.settings.snowLevel - 2) {
+        if (h >= this.settings.snowLevel + 4 || (climate.temperature < 0.3 && h >= this.settings.snowLevel + 2)) {
             return { name: 'snow', ...climate }
         }
 
@@ -316,6 +352,6 @@ export class Terrain {
      * @returns {boolean}
      */
     isSnowBiome(x, z) {
-        return this.getHeight(x, z) >= this.settings.snowLevel
+        return this.getHeight(x, z) >= this.settings.snowLevel + 3
     }
 }

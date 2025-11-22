@@ -451,6 +451,185 @@ export class TextureFactory {
                 ctx.globalAlpha = 1.0
                 break
 
+            case 'spruce_leaves':
+                // 深绿色云杉叶（更暗，更密实）
+                this.fillNoise(ctx, '#1a5f2a', '#0d4a1a', 0.2, seed)
+
+                // 添加透明区域（模拟针叶间隙）
+                ctx.globalCompositeOperation = 'destination-out'
+                const randHoleSpruce = this.seededRandom(seed * 2 + 1)
+                for (let i = 0; i < 12; i++) {
+                    const x = randHoleSpruce() * 64
+                    const y = randHoleSpruce() * 64
+                    const radius = 1 + randHoleSpruce() * 3
+                    ctx.beginPath()
+                    ctx.arc(x, y, radius, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+                ctx.globalCompositeOperation = 'source-over'
+
+                // 细叶脉（更细更密）
+                const randVeinSpruce = this.seededRandom(seed * 3 + 2)
+                ctx.strokeStyle = '#082a0a'
+                ctx.lineWidth = 1
+                ctx.globalAlpha = 0.5
+                for (let i = 0; i < 10; i++) {
+                    const startX = randVeinSpruce() * 64
+                    const startY = randVeinSpruce() * 64
+                    const angle = randVeinSpruce() * Math.PI * 2
+                    const length = 10 + randVeinSpruce() * 15
+                    const endX = startX + Math.cos(angle) * length
+                    const endY = startY + Math.sin(angle) * length
+
+                    ctx.beginPath()
+                    ctx.moveTo(startX, startY)
+                    ctx.lineTo(endX, endY)
+                    ctx.stroke()
+                }
+
+                // 添加暗部（云杉较暗）
+                ctx.globalAlpha = 0.2
+                ctx.fillStyle = '#000000'
+                for (let i = 0; i < 50; i++) {
+                    const x = Math.floor(randVeinSpruce() * 16) * 4
+                    const y = Math.floor(randVeinSpruce() * 16) * 4
+                    ctx.fillRect(x, y, 3, 3)
+                }
+
+                ctx.globalAlpha = 1.0
+                break
+
+            case 'birch_leaves':
+                // 浅绿色桦树叶（更亮，更淡）
+                this.fillNoise(ctx, '#7fb84a', '#6aa03a', 0.18, seed)
+
+                // 添加透明区域
+                ctx.globalCompositeOperation = 'destination-out'
+                const randHoleBirch = this.seededRandom(seed * 2 + 1)
+                for (let i = 0; i < 10; i++) {
+                    const x = randHoleBirch() * 64
+                    const y = randHoleBirch() * 64
+                    const radius = 2 + randHoleBirch() * 4
+                    ctx.beginPath()
+                    ctx.arc(x, y, radius, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+                ctx.globalCompositeOperation = 'source-over'
+
+                // 叶脉（较细，颜色较浅）
+                const randVeinBirch = this.seededRandom(seed * 3 + 2)
+                ctx.strokeStyle = '#4a7a2a'
+                ctx.lineWidth = 1.5
+                ctx.globalAlpha = 0.6
+                for (let i = 0; i < 8; i++) {
+                    const startX = randVeinBirch() * 64
+                    const startY = randVeinBirch() * 64
+                    const angle = randVeinBirch() * Math.PI * 2
+                    const length = 12 + randVeinBirch() * 18
+                    const endX = startX + Math.cos(angle) * length
+                    const endY = startY + Math.sin(angle) * length
+
+                    ctx.beginPath()
+                    ctx.moveTo(startX, startY)
+                    ctx.lineTo(endX, endY)
+                    ctx.stroke()
+                }
+
+                // 高光点（桦树叶较亮）
+                const randHighlightBirch = this.seededRandom(seed * 5 + 3)
+                for (let i = 0; i < 20; i++) {
+                    const x = randHighlightBirch() * 64
+                    const y = randHighlightBirch() * 64
+                    const size = 1 + randHighlightBirch() * 3
+                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size * 2)
+                    gradient.addColorStop(0, '#c8ff80')
+                    gradient.addColorStop(0.5, '#a0e050')
+                    gradient.addColorStop(1, 'transparent')
+                    ctx.fillStyle = gradient
+                    ctx.globalAlpha = 0.5
+                    ctx.beginPath()
+                    ctx.arc(x, y, size * 2, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+
+                // 添加浅暗部
+                ctx.globalAlpha = 0.1
+                ctx.fillStyle = '#000000'
+                for (let i = 0; i < 25; i++) {
+                    const x = Math.floor(randVeinBirch() * 16) * 4
+                    const y = Math.floor(randVeinBirch() * 16) * 4
+                    ctx.fillRect(x, y, 2, 2)
+                }
+
+                ctx.globalAlpha = 1.0
+                break
+
+            case 'jungle_leaves':
+                // 深绿密集丛林叶（最暗，最密实）
+                this.fillNoise(ctx, '#2d7a3d', '#1a5a2a', 0.22, seed)
+
+                // 添加透明区域（密集但有间隙）
+                ctx.globalCompositeOperation = 'destination-out'
+                const randHoleJungle = this.seededRandom(seed * 2 + 1)
+                for (let i = 0; i < 6; i++) {
+                    const x = randHoleJungle() * 64
+                    const y = randHoleJungle() * 64
+                    const radius = 3 + randHoleJungle() * 5
+                    ctx.beginPath()
+                    ctx.arc(x, y, radius, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+                ctx.globalCompositeOperation = 'source-over'
+
+                // 主叶脉（更密集的脉络）
+                const randVeinJungle = this.seededRandom(seed * 3 + 2)
+                ctx.strokeStyle = '#0d3a0d'
+                ctx.lineWidth = 2
+                ctx.globalAlpha = 0.8
+                for (let i = 0; i < 12; i++) {
+                    const startX = randVeinJungle() * 64
+                    const startY = randVeinJungle() * 64
+                    const angle = randVeinJungle() * Math.PI * 2
+                    const length = 18 + randVeinJungle() * 25
+                    const endX = startX + Math.cos(angle) * length
+                    const endY = startY + Math.sin(angle) * length
+
+                    ctx.beginPath()
+                    ctx.moveTo(startX, startY)
+                    ctx.lineTo(endX, endY)
+                    ctx.stroke()
+
+                    // 更多分支
+                    const branches = 3 + Math.floor(randVeinJungle() * 3)
+                    for (let b = 0; b < branches; b++) {
+                        const branchPoint = 0.2 + randVeinJungle() * 0.6
+                        const bx = startX + (endX - startX) * branchPoint
+                        const by = startY + (endY - startY) * branchPoint
+                        const branchAngle = angle + (randVeinJungle() - 0.5) * Math.PI / 2
+                        const branchLength = length * 0.4
+
+                        ctx.beginPath()
+                        ctx.moveTo(bx, by)
+                        ctx.lineTo(
+                            bx + Math.cos(branchAngle) * branchLength,
+                            by + Math.sin(branchAngle) * branchLength
+                        )
+                        ctx.stroke()
+                    }
+                }
+
+                // 添加深暗部（丛林较暗）
+                ctx.globalAlpha = 0.25
+                ctx.fillStyle = '#000000'
+                for (let i = 0; i < 60; i++) {
+                    const x = Math.floor(randVeinJungle() * 16) * 4
+                    const y = Math.floor(randVeinJungle() * 16) * 4
+                    ctx.fillRect(x, y, 4, 4)
+                }
+
+                ctx.globalAlpha = 1.0
+                break
+
             case 'sand': {
                 // 基础沙色（更温暖的金黄色）
                 this.fillNoise(ctx, '#f0d890', '#e6c570', 0.12, seed)
