@@ -25,7 +25,7 @@ export class PlayerController {
 
         this.isOnGround = false
         this.isThirdPerson = false
-        this.speed = 6.5 // 移动速度减缓约20%
+        this.speed = 5.2 // 移动速度降低约20%
         this.jumpStrength = 6.5 // 跳跃力度略减，时间更短
         this.gravity = 22 // 增大重力让跳跃更快落地
         this.waterDrag = 0.4

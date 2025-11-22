@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-这是一个受 Minecraft 启发的 **3D 体素世界生成器**，使用 Three.js 构建。它生成程序化的 3D 世界，包含村庄、建筑、地形和装饰元素。代码库最近从单体结构重构为包含 11 个专业类的模块化 OOP 架构。
+这是一个受 Minecraft 启发的 **3D 体素世界生成器**，使用 Three.js 构建。它生成程序化的 3D 世界，包含村庄、建筑、地形和装饰元素。代码库最近从单体结构重构为模块化 OOP 架构，包含多个专业类。
 
 ## 核心架构
 
@@ -21,8 +21,7 @@ World（根管理器）
 ├── Village[]（村庄生成）
 │   ├── Building[]（建筑结构）
 │   │   ├── TownHall, Tower, Blacksmith
-│   │   ├── House, Barn, Storage
-│   │   └── Farm（带灌溉的特殊建筑）
+│   │   └── House, Barn, Storage
 │   ├── Path[]（道路网络）
 │   └── Decoration[]（围栏、花园、广场、水井）
 │
@@ -95,7 +94,6 @@ World（根管理器）
 - **Tower（塔楼）**：50-80% 半径（外围防御）
 - **Blacksmith/House（铁匠铺/民居）**：20-50% 半径（居住区）
 - **Barn（谷仓）**：40-70% 半径（农业区）
-- **Farm（农田）**：60-100% 半径（外环）
 - **Storage（储藏室）**：30-60% 半径（中心存储）
 
 ### 5. 建筑系统（`js/class/Building.js`）
@@ -111,17 +109,7 @@ World（根管理器）
   - `Barn`：12x8x6，农业建筑带大门
   - `Storage`：6x6x4，简易存储建筑
 
-### 6. 农田系统（`js/class/Farm.js`）
-
-特殊建筑类型，具有：
-
-- 9x9 地块带木质围栏边界
-- 3x3 灌溉网格（水渠）
-- 棋盘格作物种植模式
-- 多层作物建模（茎 + 叶 + 分枝）
-- 可选农舍
-
-### 7. 装饰系统（`js/class/Decoration.js`）
+### 6. 装饰系统（`js/class/Decoration.js`）
 
 自然和结构装饰：
 
@@ -261,7 +249,6 @@ case 'newTexture':
 | `js/textures.js`         | 程序化纹理生成                 | TextureFactory, createTexture(), seededRandom()                    |
 | `js/class/Village.js`    | 村庄生成系统                   | generate(), generateBuildings(), generatePaths(), findBuildingPosition()   |
 | `js/class/Building.js`   | 基础建筑架构                   | build(), buildFoundation(), buildWalls(), buildRoof()（模板方法）    |
-| `js/class/Farm.js`       | 带灌溉的农田                   | buildFence(), buildFarmland(), buildIrrigation(), buildCrops()             |
 | `js/class/Decoration.js` | 装饰元素                       | Tree, Fence, Grass, Garden, Square, Well, Fountain, Path           |
 
 ## 已知问题和解决方案
@@ -282,7 +269,6 @@ case 'newTexture':
 
 - 建筑在放置前检查 `occupiedSet`
 - 每个建筑标记其占用的区域
-- 农田使用更简单的单点检查
 
 ### 性能瓶颈
 

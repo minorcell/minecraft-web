@@ -1,5 +1,4 @@
 import { TownHall, Tower, Blacksmith, House, Barn, Storage } from './BuildingTypes.js'
-import { Farm } from './Farm.js'
 import { Decoration, Path } from './Decoration.js'
 import { VoxelBuilder } from '../voxel.js'
 import { Terrain } from './Terrain.js'
@@ -27,7 +26,6 @@ export class Village {
 
         // 村庄组件
         this.buildings = []
-        this.farms = []
         this.paths = []
         this.decorations = []
 
@@ -38,8 +36,7 @@ export class Village {
             { type: Blacksmith, count: 1, priority: 3, distanceRange: [0.2, 0.5] },
             { type: House, count: 3, priority: 4, distanceRange: [0.2, 0.5] },
             { type: Barn, count: 2, priority: 5, distanceRange: [0.4, 0.7] },
-            { type: Farm, count: 3, priority: 6, distanceRange: [0.6, 1.0] },
-            { type: Storage, count: 2, priority: 7, distanceRange: [0.3, 0.6] }
+            { type: Storage, count: 2, priority: 6, distanceRange: [0.3, 0.6] }
         ]
 
         this.occupiedPositions = new Set()
@@ -243,7 +240,6 @@ export class Village {
             position: { x: this.x, y: this.y, z: this.z },
             radius: this.radius,
             buildingCount: this.buildings.length,
-            farmCount: this.farms.length,
             pathCount: this.paths.length,
             decorationCount: this.decorations.length
         }

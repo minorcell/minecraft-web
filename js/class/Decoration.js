@@ -199,7 +199,7 @@ Decoration.Garden = class extends Decoration {
                 if (this.rand() > 0.4) {
                     builder.addBlock('dirt', this.x + gx, this.y, this.z + gz)
                     if (this.rand() > 0.6) {
-                        builder.addBlock('leaves', this.x + gx, this.y + 1, this.z + gz) // 花朵
+                        builder.addBlock('flower', this.x + gx, this.y + 1, this.z + gz) // 花朵
                     }
                 }
             }
@@ -277,34 +277,7 @@ Decoration.Grass = class extends Decoration {
             const groundY = terrain.getHeight(this.x + offsetX, this.z + offsetZ)
 
             if (groundY > terrain.settings.waterLevel && groundY < terrain.settings.snowLevel) {
-                // 创建草叶 - 多层高度
-                const height = 1 + Math.floor(this.rand() * 2) // 1-2层高
-                for (let h = 1; h <= height; h++) {
-                    // 主体草叶
-                    builder.addBlock('leaves', this.x + offsetX, groundY + h, this.z + offsetZ)
-
-                    // 添加侧叶 - 让草更分散
-                    if (h === height && this.rand() > 0.6) {
-                        // 添加一些侧叶
-                        const directions = [
-                            { x: 1, z: 0 },
-                            { x: -1, z: 0 },
-                            { x: 0, z: 1 },
-                            { x: 0, z: -1 }
-                        ]
-                        // 随机选择1-2个方向添加侧叶
-                        const dirCount = 1 + Math.floor(this.rand() * 2)
-                        for (let d = 0; d < dirCount; d++) {
-                            const dir = directions[Math.floor(this.rand() * directions.length)]
-                            builder.addBlock('leaves', this.x + offsetX + dir.x, groundY + h, this.z + offsetZ + dir.z)
-                        }
-                    }
-                }
-
-                // 随机添加花朵
-                if (this.rand() > 0.7) {
-                    builder.addBlock('leaves', this.x + offsetX, groundY + height + 1, this.z + offsetZ)
-                }
+                builder.addBlock('flower', this.x + offsetX, groundY + 1, this.z + offsetZ)
             }
         }
     }
