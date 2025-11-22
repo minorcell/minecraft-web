@@ -140,8 +140,8 @@ export class TextureFactory {
                 break
 
             case 'water':
-                // Simple solid color water, no texture for more natural look
-                ctx.fillStyle = '#3388ff'
+                // Deeper water color for better underwater effect
+                ctx.fillStyle = '#2277dd'
                 ctx.fillRect(0, 0, 64, 64)
                 break
 

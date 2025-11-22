@@ -2,8 +2,9 @@ import * as THREE from 'three'
 import { TextureFactory } from './textures.js'
 
 export class VoxelBuilder {
-    constructor() {
-        this.geometry = new THREE.BoxGeometry(1, 1, 1)
+    constructor(geometry = null) {
+        // 使用传入的几何体或默认立方体
+        this.geometry = geometry || new THREE.BoxGeometry(1, 1, 1)
         this.factory = new TextureFactory()
         this.variants = 4
 
@@ -66,8 +67,8 @@ export class VoxelBuilder {
             // Roof
             this.materials.roof.push(mat(this.factory.createTexture('roof', v)))
 
-            // Water - more transparent
-            this.materials.water.push(mat(this.factory.createTexture('water', v), true, 0.4))
+            // Water - less transparent for better underwater effect
+            this.materials.water.push(mat(this.factory.createTexture('water', v), true, 0.7))
 
             // Sand
             this.materials.sand.push(mat(this.factory.createTexture('sand', v)))
@@ -102,6 +103,14 @@ export class VoxelBuilder {
             matrix: this.dummy.matrix.clone(),
             variant: v
         })
+    }
+
+    /**
+     * 从Block对象添加方块
+     * @param {Block} block - 方块对象
+     */
+    addBlockFromObject(block) {
+        this.addBlock(block.type, block.x, block.y, block.z, block.variant)
     }
 
     render(scene) {
