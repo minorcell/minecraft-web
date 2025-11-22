@@ -46,14 +46,51 @@ export const blocks = [
   },
   {
     id: 'leaves',
-    name: '树叶',
+    name: '橡树叶',
     hardness: 0.2,
     solid: true,
     breakable: true,
     drops: [{ id: 'leaves', count: 1 }],
-    transparent: true,
+    transparent: false,
     opacity: 1.0,
+    renderLayer: 'solid',
     textures: { all: 'leaves' }
+  },
+  {
+    id: 'spruce_leaves',
+    name: '云杉叶',
+    hardness: 0.2,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'spruce_leaves', count: 1 }],
+    transparent: false,
+    opacity: 1.0,
+    renderLayer: 'solid',
+    textures: { all: 'spruce_leaves' }
+  },
+  {
+    id: 'birch_leaves',
+    name: '桦树叶',
+    hardness: 0.2,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'birch_leaves', count: 1 }],
+    transparent: false,
+    opacity: 1.0,
+    renderLayer: 'solid',
+    textures: { all: 'birch_leaves' }
+  },
+  {
+    id: 'jungle_leaves',
+    name: '丛林叶',
+    hardness: 0.2,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'jungle_leaves', count: 1 }],
+    transparent: false,
+    opacity: 1.0,
+    renderLayer: 'solid',
+    textures: { all: 'jungle_leaves' }
   },
   {
     id: 'glass',
@@ -64,6 +101,7 @@ export const blocks = [
     drops: [],
     transparent: true,
     opacity: 0.6,
+    renderLayer: 'alpha',
     textures: { all: 'glass' }
   },
   {
@@ -84,6 +122,7 @@ export const blocks = [
     drops: [],
     transparent: true,
     opacity: 0.7,
+    renderLayer: 'water',
     textures: { all: 'water' }
   },
   {

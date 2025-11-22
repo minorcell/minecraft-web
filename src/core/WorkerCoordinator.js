@@ -2,8 +2,9 @@
  * Worker 协调器：负责与地形/装饰 worker 通信，避免 World 直接持有 worker 逻辑
  */
 export class WorkerCoordinator {
-    constructor({ terrainSettings, onChunkData, onDecorData, onError }) {
+    constructor({ terrainSettings, blockIds = [], onChunkData, onDecorData, onError }) {
         this.terrainSettings = terrainSettings
+        this.blockIds = blockIds
         this.onChunkData = onChunkData
         this.onDecorData = onDecorData
         this.onError = onError
@@ -57,7 +58,7 @@ export class WorkerCoordinator {
         }
     }
 
-    requestChunk(cx, cz, key, minCoord, maxCoord, settings) {
+    requestChunk(cx, cz, key, minCoord, maxCoord, settings, options = {}) {
         if (!this.chunkWorker) this.initChunkWorker()
         if (!this.chunkWorker) return false
         if (this.pendingChunks.has(key)) return true
@@ -70,7 +71,9 @@ export class WorkerCoordinator {
                 chunkKey: key,
                 minCoord,
                 maxCoord,
-                terrainSettings: settings || this.terrainSettings
+                terrainSettings: settings || this.terrainSettings,
+                blockIds: this.blockIds,
+                lowDetail: options.lowDetail || false
             }
         })
         return true

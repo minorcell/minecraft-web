@@ -39,9 +39,62 @@ export class PlayerController {
         this.pitch = 0
         this.mouseSensitivity = 0.002
         this.pointerLocked = false
+        this.spawnChecked = false
 
         this.keys = {}
+        if (this.world?.events) {
+            this.world.events.on('chunk:loaded', () => {
+                if (this.spawnChecked) return
+                if (this.findSafeSpawn(this.position, 12)) {
+                    this.spawnChecked = true
+                }
+            })
+        }
+
         this.initInput()
+    }
+
+    isPositionColliding(x, y, z) {
+        const pos = new THREE.Vector3(x, y, z)
+        return this.collides(this.getAABB(pos))
+    }
+
+    findSafeSpawn(center = { x: 0, z: 0 }, maxRadius = 16) {
+        const startX = Math.floor(center.x)
+        const startZ = Math.floor(center.z)
+        const waterLevel = this.terrain.settings.waterLevel
+
+        const tryPosition = (x, z) => {
+            const groundY = this.terrain.getHeight(x, z)
+            if (groundY < waterLevel || this.terrain.isUnderwater(x, z)) return null
+            const feetY = groundY + 1.01
+            if (this.isPositionColliding(x + 0.5, feetY, z + 0.5)) return null
+            return { x: x + 0.5, y: feetY, z: z + 0.5 }
+        }
+
+        for (let r = 0; r <= maxRadius; r++) {
+            for (let dx = -r; dx <= r; dx++) {
+                for (let dz = -r; dz <= r; dz++) {
+                    if (Math.abs(dx) !== r && Math.abs(dz) !== r && r !== 0) continue
+                    const candidate = tryPosition(startX + dx, startZ + dz)
+                    if (candidate) {
+                        this.position.set(candidate.x, candidate.y, candidate.z)
+                        this.velocity.set(0, 0, 0)
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    resolveEmbedding() {
+        for (let i = 0; i < 8; i++) {
+            if (!this.isPositionColliding(this.position.x, this.position.y, this.position.z)) {
+                return
+            }
+            this.position.y += 0.5
+        }
     }
 
     initInput() {
@@ -73,7 +126,7 @@ export class PlayerController {
             }
         })
         window.addEventListener('keyup', (e) => {
-            this.keys[e.code] = false
+        this.keys[e.code] = false
         })
     }
 
@@ -191,11 +244,19 @@ export class PlayerController {
         }
     }
 
+    getForwardFlat() {
+        const forward = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(0, this.yaw, 0, 'YXZ'))
+        forward.y = 0
+        forward.normalize()
+        return forward
+    }
+
     /**
      * 每帧更新
      * @param {number} dt - delta time in seconds
      */
     update(dt) {
+        this.resolveEmbedding()
         // 限制大跨度帧导致的穿模/掉落
         const clampedDt = Math.min(dt, 0.05)
 

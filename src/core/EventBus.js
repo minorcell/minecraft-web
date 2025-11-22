@@ -34,9 +34,9 @@ export class EventBus {
     emit(event, ...args) {
         const list = this.events.get(event)
         if (!list || list.length === 0) return
-        // 拷贝一份避免监听器内部修改列表
-        const handlers = [...list]
-        for (const fn of handlers) {
+        // 直接迭代，避免不必要的拷贝；若监听器内部修改列表，会影响后续迭代
+        for (let i = 0; i < list.length; i++) {
+            const fn = list[i]
             try {
                 fn(...args)
             } catch (err) {

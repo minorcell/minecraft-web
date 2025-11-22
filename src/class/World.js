@@ -25,7 +25,7 @@ export class World {
         this.settings = {
             worldSize: options.worldSize || 128,
             villageCount: options.villageCount || 8,
-            treeCount: options.treeCount || 150,
+            treeCount: options.treeCount || 520,
             grassCount: options.grassCount || 1000,
             seed: options.seed || Date.now(),
             ...options.settings
@@ -64,6 +64,7 @@ export class World {
         this.renderCoordinator = new RenderCoordinator(this.scene, this.voxelBuilder)
         this.workerCoordinator = new WorkerCoordinator({
             terrainSettings: this.terrain.getSettings(),
+            blockIds: this.blockDefs.getAllIds(),
             onChunkData: (payload) => this.applyChunkData(payload),
             onDecorData: (payload) => this.applyDecorData(payload),
             onError: (msg) => console.error(msg)
@@ -72,12 +73,29 @@ export class World {
         this.useDecorWorker = true
         // 碰撞检测
         this.occupied = new Set()
+        this.lastChunkCheckPos = null
+        this.lastChunkCheckChunk = null
+        this.chunkCheckThreshold = this.terrain.settings.chunkSize * 0.45
+        this.lastChunkCheckTime = 0
+        this.chunkCheckInterval = 0.12 // seconds
+        this.maxChunkRequestsPerTick = 4
+        this.lowDetailRadius = this.terrain.settings.chunkSize * Math.max(1, (this.chunkManager.viewDistance - 2))
     }
 
     applyChunkData(payload) {
-        const { chunkKey, blocks } = payload
-        for (const block of blocks) {
-            this.voxelBuilder.addBlock(block.type, block.x, block.y, block.z, null, chunkKey)
+        const { chunkKey } = payload
+        if (payload.blocks) {
+            for (const block of payload.blocks) {
+                this.voxelBuilder.addBlock(block.type, block.x, block.y, block.z, null, chunkKey)
+            }
+        } else if (payload.xs && payload.ys && payload.zs && payload.types) {
+            const ids = payload.blockIds && payload.blockIds.length ? payload.blockIds : this.blockDefs.getAllIds()
+            const { xs, ys, zs, types } = payload
+            const len = types.length
+            for (let i = 0; i < len; i++) {
+                const type = ids[types[i]] || ids[0]
+                this.voxelBuilder.addBlock(type, xs[i], ys[i], zs[i], null, chunkKey)
+            }
         }
         this.chunkManager.markLoaded(chunkKey)
         this.renderChunk(chunkKey)
@@ -381,7 +399,33 @@ export class World {
      * 更新视野内chunk：根据相机位置加载/卸载
      * @param {{x:number,z:number}} position
      */
-    updateChunks(position) {
+    updateChunks(position, forward = null) {
+        if (!position) return
+        const now = performance?.now ? performance.now() : Date.now()
+        if (this.lastChunkCheckTime && (now - this.lastChunkCheckTime) < this.chunkCheckInterval * 1000) {
+            return
+        }
+        const { chunkSize } = this.terrain.settings
+        const currentChunk = {
+            cx: Math.floor(position.x / chunkSize),
+            cz: Math.floor(position.z / chunkSize)
+        }
+
+        if (this.lastChunkCheckChunk &&
+            this.lastChunkCheckChunk.cx === currentChunk.cx &&
+            this.lastChunkCheckChunk.cz === currentChunk.cz &&
+            this.lastChunkCheckPos) {
+            const dx = position.x - this.lastChunkCheckPos.x
+            const dz = position.z - this.lastChunkCheckPos.z
+            const distSq = dx * dx + dz * dz
+            if (distSq < this.chunkCheckThreshold * this.chunkCheckThreshold) {
+                return
+            }
+        }
+
+        this.lastChunkCheckPos = new THREE.Vector3(position.x, 0, position.z)
+        this.lastChunkCheckChunk = currentChunk
+        this.lastChunkCheckTime = now
         const diff = this.chunkManager.diff(new THREE.Vector3(position.x, 0, position.z))
         const minCoord = -this.settings.worldSize
         const maxCoord = this.settings.worldSize - 1
@@ -395,8 +439,29 @@ export class World {
             // 保留数据（未调用clearChunk），以便重新渲染
         }
 
-        // 加载
-        for (const item of diff.toLoad) {
+        // 加载：按距离排序，限制每次请求数量，缓解抖动
+        const fwd = forward ? new THREE.Vector3(forward.x, 0, forward.z).normalize() : null
+        const sortedLoads = diff.toLoad
+            .map(item => {
+                const centerX = (item.cx + 0.5) * this.terrain.settings.chunkSize
+                const centerZ = (item.cz + 0.5) * this.terrain.settings.chunkSize
+                const dx = centerX - position.x
+                const dz = centerZ - position.z
+                const distSq = dx * dx + dz * dz
+                let score = distSq
+                if (fwd) {
+                    const dir = new THREE.Vector3(dx, 0, dz).normalize()
+                    const dot = Math.max(-1, Math.min(1, dir.dot(fwd)))
+                    const bias = 1 - dot // 0 前方, 2 后方
+                    score = distSq * (1 + 0.35 * bias)
+                }
+                return { ...item, distSq, score }
+            })
+            .sort((a, b) => a.score - b.score)
+
+        let issued = 0
+        for (const item of sortedLoads) {
+            if (issued >= this.maxChunkRequestsPerTick) break
             const { cx, cz, key } = item
             const startX = cx * this.terrain.settings.chunkSize
             const startZ = cz * this.terrain.settings.chunkSize
@@ -406,7 +471,9 @@ export class World {
             }
 
             // 优先使用worker生成
-            if (this.useChunkWorker && this.requestChunkFromWorker(cx, cz, key, minCoord, maxCoord)) {
+            const lowDetail = item.distSq > this.lowDetailRadius * this.lowDetailRadius
+            if (this.useChunkWorker && this.requestChunkFromWorker(cx, cz, key, minCoord, maxCoord, { lowDetail })) {
+                issued++
                 continue
             }
 

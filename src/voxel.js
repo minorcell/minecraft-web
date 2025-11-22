@@ -20,14 +20,21 @@ export class VoxelBuilder {
             })
         }
 
-        // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant,x,y,z}> }>
+        // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant,x,y,z,layer}> }>
         this.instances = new Map()
+        this.layeredInstances = new Map() // Map<chunkKey, { solid: [], alpha: [], water: [] }>
         this.chunkSize = chunkSize
         this.registry = registry
         this.blockDefs = blockDefs
         this.materialsCache = new Map()
+        this.layeredMaterials = {
+            solid: new Map(),
+            alpha: new Map(),
+            water: new Map()
+        }
 
         this.dummy = new THREE.Object3D()
+        this.sharedGeometry = this.geometry // 共享几何以避免重复克隆
     }
 
     /**
@@ -39,6 +46,15 @@ export class VoxelBuilder {
      * @returns {number}
      */
     getVariantFromHash(type, x, y, z) {
+        // 水方块使用更丰富的变体逻辑（基于对角线位置）
+        if (type === 'water') {
+            // 使用 (x+z) 和 (x-z) 的组合增加变化
+            const diag1 = (x + z) % this.variants
+            const diag2 = (x - z + 1000) % this.variants
+            const combined = (diag1 * 2 + diag2) % this.variants
+            return combined
+        }
+
         // 通过整数混合减少碰撞，并保持跨平台一致
         let h = this.variantSeed
         h ^= SeededRandom.hash(type)
@@ -49,8 +65,15 @@ export class VoxelBuilder {
     }
 
     addBlock(type, x, y, z, variant = null, chunkKey = null) {
-        this.ensureMaterial(type)
-        if (!this.materialsCache.has(type)) return
+        let blockType = type
+
+        if (type === 'water') {
+            const isTopWater = !this.registry || !this.registry.has(x, y + 1, z)
+            blockType = isTopWater ? 'water_wavy' : 'water_still'
+        }
+
+        this.ensureMaterial(blockType)
+        if (!this.materialsCache.has(blockType)) return
 
         // Use provided variant or random
         const v = variant !== null ? variant : this.getVariantFromHash(type, x, y, z)
@@ -62,18 +85,23 @@ export class VoxelBuilder {
 
         if (!this.instances.has(key)) {
             this.instances.set(key, {})
+            this.layeredInstances.set(key, { solid: [], alpha: [], water: [] })
         }
         const bucket = this.instances.get(key)
-        if (!bucket[type]) {
-            bucket[type] = []
+        if (!bucket[blockType]) {
+            bucket[blockType] = []
         }
 
-        bucket[type].push({
+        const opts = this.blockDefs.getMaterialOptions(type)
+        const layer = opts.renderLayer || 'solid'
+
+        bucket[blockType].push({
             matrix: this.dummy.matrix.clone(),
             variant: v,
             x,
             y,
-            z
+            z,
+            layer
         })
 
         // 记录到方块注册表
@@ -127,45 +155,72 @@ export class VoxelBuilder {
         const chunkData = this.instances.get(chunkKey)
         if (!chunkData) return []
 
-        const meshes = []
-        for (const [type, instances] of Object.entries(chunkData)) {
-            if (!instances || instances.length === 0) continue
+        const layers = this.layeredInstances.get(chunkKey) || { solid: [], alpha: [], water: [] }
+        const collectLayer = (layerName, flags) => {
+            const meshes = []
+            for (const [type, instances] of Object.entries(chunkData)) {
+                if (!instances || instances.length === 0) continue
+                const filtered = instances.filter(inst => inst.layer === layerName)
+                if (filtered.length === 0) continue
 
-            // Group by variant
-            const groups = {}
-            for (const instance of instances) {
-                const v = instance.variant
-                if (!groups[v]) groups[v] = []
-                groups[v].push(instance)
-            }
-
-            const mats = this.materialsCache.get(type)
-            if (!mats) continue
-
-            for (const [variant, variantInstances] of Object.entries(groups)) {
-                const baseMat = mats[variant % mats.length]
-                const material = Array.isArray(baseMat) ? baseMat.map(m => m.clone()) : baseMat.clone()
-                const geo = this.geometry.clone()
-                const mesh = new THREE.InstancedMesh(geo, material, variantInstances.length)
-                for (let i = 0; i < variantInstances.length; i++) {
-                    mesh.setMatrixAt(i, variantInstances[i].matrix)
+                // Group by variant
+                const groups = {}
+                for (const inst of filtered) {
+                    const v = inst.variant
+                    if (!groups[v]) groups[v] = []
+                    groups[v].push(inst)
                 }
-                mesh.castShadow = true
-                mesh.receiveShadow = true
-                mesh.instanceMatrix.needsUpdate = true
-                scene.add(mesh)
-                meshes.push(mesh)
+
+                const mats = this.materialsCache.get(type)
+                if (!mats) continue
+
+                for (const [variant, variantInstances] of Object.entries(groups)) {
+                    const material = mats[variant % mats.length]
+                    if (flags) {
+                        if (Array.isArray(material)) {
+                            material.forEach(m => {
+                                m.transparent = flags.transparent ?? m.transparent
+                                m.opacity = flags.opacity ?? m.opacity
+                                m.depthWrite = flags.depthWrite ?? m.depthWrite
+                                m.depthTest = flags.depthTest ?? m.depthTest
+                            })
+                        } else {
+                            material.transparent = flags.transparent ?? material.transparent
+                            material.opacity = flags.opacity ?? material.opacity
+                            material.depthWrite = flags.depthWrite ?? material.depthWrite
+                            material.depthTest = flags.depthTest ?? material.depthTest
+                        }
+                    }
+                    const mesh = new THREE.InstancedMesh(this.sharedGeometry, material, variantInstances.length)
+                    for (let i = 0; i < variantInstances.length; i++) {
+                        mesh.setMatrixAt(i, variantInstances[i].matrix)
+                    }
+                    mesh.castShadow = layerName === 'solid'
+                    mesh.receiveShadow = layerName !== 'water'
+                    mesh.instanceMatrix.needsUpdate = true
+                    scene.add(mesh)
+                    meshes.push(mesh)
+                    layers[layerName].push(mesh)
+                }
             }
+            return meshes
         }
-        return meshes
+
+        const result = []
+        result.push(...collectLayer('solid'))
+        result.push(...collectLayer('alpha', { transparent: true, depthWrite: false }))
+        result.push(...collectLayer('water', { transparent: true, depthWrite: false }))
+        return result
     }
 
     clearChunk(chunkKey) {
         this.instances.delete(chunkKey)
+        this.layeredInstances.delete(chunkKey)
     }
 
     clearAll() {
         this.instances.clear()
+        this.layeredInstances.clear()
     }
 
     /**
@@ -175,34 +230,57 @@ export class VoxelBuilder {
     ensureMaterial(type) {
         if (this.materialsCache.has(type)) return
         if (!this.blockDefs) return
-        const textures = this.blockDefs.getTextures(type)
-        const opts = this.blockDefs.getMaterialOptions(type)
+
+        const opts = this.blockDefs.getMaterialOptions(
+            type === 'water_wavy' ? 'water' :
+            type === 'water_still' ? 'water' : type
+        )
         const mat = (tex) => new THREE.MeshLambertMaterial({
             map: tex,
             transparent: opts.transparent,
             opacity: opts.opacity
         })
 
-        const allTex = textures.all ? this.factory.createTexture(textures.all, 0) : null
-        const top = textures.top ? this.factory.createTexture(textures.top, 0) : allTex
-        const bottom = textures.bottom ? this.factory.createTexture(textures.bottom, 0) : allTex
-        const side = textures.side ? this.factory.createTexture(textures.side, 0) : allTex
-
         let variants = []
 
-        if (top && bottom && side) {
-            variants.push([
-                mat(side),
-                mat(side),
-                mat(top),
-                mat(bottom),
-                mat(side),
-                mat(side)
-            ])
-        } else if (allTex) {
-            variants.push(mat(allTex))
+        if (type === 'water_wavy') {
+            const wavyTex = this.factory.createTexture('water', 0)
+            const stillTex = this.factory.createTexture('water_still', 0)
+            const waterMaterials = [
+                mat(stillTex),
+                mat(stillTex),
+                mat(wavyTex),
+                mat(stillTex),
+                mat(stillTex),
+                mat(stillTex)
+            ]
+            variants.push(waterMaterials)
+        } else if (type === 'water_still') {
+            const stillTex = this.factory.createTexture('water_still', 0)
+            const waterMaterials = Array(6).fill(mat(stillTex))
+            variants.push(waterMaterials)
         } else {
-            variants.push(mat(this.factory.createTexture('stone', 0)))
+            const textures = this.blockDefs.getTextures(type)
+            const allTex = textures.all ? this.factory.createTexture(textures.all, 0) : null
+            const top = textures.top ? this.factory.createTexture(textures.top, 0) : allTex
+            const bottom = textures.bottom ? this.factory.createTexture(textures.bottom, 0) : allTex
+            const side = textures.side ? this.factory.createTexture(textures.side, 0) : allTex
+
+            if (top && bottom && side) {
+                const shared = [
+                    mat(side),
+                    mat(side),
+                    mat(top),
+                    mat(bottom),
+                    mat(side),
+                    mat(side)
+                ]
+                variants.push(shared)
+            } else if (allTex) {
+                variants.push(mat(allTex))
+            } else {
+                variants.push(mat(this.factory.createTexture('stone', 0)))
+            }
         }
 
         this.materialsCache.set(type, variants)

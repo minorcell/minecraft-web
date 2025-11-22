@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { TextureFactory } from '../textures.js'
+import { BlockPreviewRenderer } from './Inventory.js'
 
 /**
  * 方块交互管理：射线拾取、高亮、破坏/放置、热键栏、背包、说明书
@@ -40,8 +41,13 @@ export class BlockInteractor {
         this.hotbarSlots = []
         this.inventorySlots = []
         this.blockMeta = this.createBlockMeta()
+        this.textureFactory = new TextureFactory()
+        this.previewRenderer = new BlockPreviewRenderer(this.blockDefs, this.textureFactory)
         this.hotbarUI = this.createHotbarUI()
+        this.hotbarLabel = this.createHotbarLabel()
         this.inventoryUI = this.createInventoryUI()
+        this.heldItem = null
+        this.heldIcon = this.createHeldIcon()
         this.progressUI = this.createProgressUI()
         this.inventoryOpen = false
         this.isBreaking = false
@@ -51,7 +57,6 @@ export class BlockInteractor {
         this.drops = []
         this.dropGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35)
         this.dropMats = {}
-        this.textureFactory = new TextureFactory()
 
         this.initInput()
         this.updateInventoryUI()
@@ -71,7 +76,7 @@ export class BlockInteractor {
      */
     createCrackOverlay() {
         const geo = new THREE.BoxGeometry(1.01, 1.01, 1.01)
-        const texture = this.world.voxelBuilder.factory.createTexture('crack', 0)
+        const texture = this.world.voxelBuilder.factory.createDestructionTexture(0)
         texture.transparent = true
         const mat = new THREE.MeshBasicMaterial({
             map: texture,
@@ -197,7 +202,6 @@ export class BlockInteractor {
         icon.style.width = '32px'
         icon.style.height = '32px'
         icon.style.borderRadius = '4px'
-        icon.style.background = `linear-gradient(135deg, ${style.color}, ${style.secondary})`
         icon.style.display = 'grid'
         icon.style.placeItems = 'center'
         icon.style.fontWeight = 'bold'
@@ -207,81 +211,105 @@ export class BlockInteractor {
         return icon
     }
 
+    createHeldIcon() {
+        const holder = document.createElement('div')
+        holder.id = 'hud-held'
+        holder.className = 'hud-held'
+        holder.style.display = 'none'
+
+        const icon = this.createIcon(this.blockMeta.default)
+        icon.classList.add('hud-held-icon')
+        const count = document.createElement('div')
+        count.className = 'hud-count'
+
+        const inner = document.createElement('div')
+        inner.className = 'hud-slot-inner'
+        inner.appendChild(icon)
+        inner.appendChild(count)
+
+        holder.appendChild(inner)
+        document.body.appendChild(holder)
+        return { holder, icon, count }
+    }
+
     renderSlot(slotEl, slotData, active, indexLabel) {
         const iconEl = slotEl.querySelector('.hud-icon')
         const countEl = slotEl.querySelector('.hud-count')
         const meta = slotData ? (this.blockMeta[slotData.type] || this.blockMeta.default) : null
+        const preview = slotData ? this.previewRenderer.getPreview(slotData.type) : null
 
-        if (meta) {
+        if (preview) {
+            iconEl.style.backgroundImage = `url(${preview})`
+            iconEl.style.backgroundColor = 'rgba(0,0,0,0.1)'
+            iconEl.textContent = ''
+        } else if (meta) {
+            iconEl.style.backgroundImage = 'none'
             iconEl.style.background = `linear-gradient(135deg, ${meta.color}, ${meta.secondary})`
             iconEl.textContent = meta.short
         } else {
+            iconEl.style.backgroundImage = 'none'
             iconEl.style.background = 'rgba(255,255,255,0.08)'
             iconEl.textContent = ''
         }
 
         countEl.textContent = slotData && slotData.count > 1 ? slotData.count : ''
-        slotEl.style.background = active ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.35)'
-        slotEl.style.outline = active ? '2px solid rgba(255,255,255,0.8)' : '1px solid rgba(255,255,255,0.25)'
+        slotEl.classList.toggle('is-active', active)
+        slotEl.classList.toggle('is-empty', !slotData)
         slotEl.title = slotData ? `${indexLabel} ${slotData.type} x${slotData.count}` : `${indexLabel} 空`
     }
 
     createHotbarUI() {
         const bar = document.createElement('div')
-        bar.style.position = 'absolute'
-        bar.style.bottom = '16px'
-        bar.style.left = '50%'
-        bar.style.transform = 'translateX(-50%)'
-        bar.style.display = 'flex'
-        bar.style.gap = '6px'
-        bar.style.padding = '6px'
-        bar.style.background = 'rgba(0,0,0,0.3)'
-        bar.style.borderRadius = '6px'
-        bar.style.fontFamily = 'monospace'
-        bar.style.color = '#fff'
-        bar.style.userSelect = 'none'
+        bar.id = 'hud-hotbar'
+        bar.className = 'hud-hotbar'
 
         for (let idx = 0; idx < this.hotbarSize; idx++) {
             const slot = document.createElement('div')
-            slot.style.display = 'grid'
-            slot.style.placeItems = 'center'
-            slot.style.padding = '4px'
-            slot.style.borderRadius = '6px'
-            slot.style.minWidth = '44px'
-            slot.style.minHeight = '48px'
+            slot.className = 'hud-slot hotbar-slot'
 
             const icon = this.createIcon(this.blockMeta.default)
             const count = document.createElement('div')
             count.className = 'hud-count'
-            count.style.position = 'absolute'
-            count.style.right = '6px'
-            count.style.bottom = '2px'
-            count.style.fontSize = '12px'
-            count.style.textShadow = '0 1px 1px rgba(0,0,0,0.6)'
 
             const wrapper = document.createElement('div')
-            wrapper.style.position = 'relative'
+            wrapper.className = 'hud-slot-inner'
             wrapper.appendChild(icon)
             wrapper.appendChild(count)
 
             const idxLabel = document.createElement('div')
             idxLabel.className = 'hud-idx'
             idxLabel.textContent = idx + 1
-            idxLabel.style.position = 'absolute'
-            idxLabel.style.left = '6px'
-            idxLabel.style.top = '2px'
-            idxLabel.style.fontSize = '11px'
-            idxLabel.style.opacity = '0.8'
 
-            slot.style.position = 'relative'
             slot.appendChild(idxLabel)
             slot.appendChild(wrapper)
             bar.appendChild(slot)
             this.hotbarSlots.push(slot)
+
+            slot.addEventListener('click', (e) => {
+                if (!this.inventoryOpen) return
+                e.stopPropagation()
+                this.handleSlotClick(idx)
+            })
+
+            slot.addEventListener('contextmenu', (e) => {
+                if (!this.inventoryOpen) return
+                e.preventDefault()
+                e.stopPropagation()
+                this.handleSlotRightClick(idx)
+            })
         }
 
         document.body.appendChild(bar)
         return bar
+    }
+
+    createHotbarLabel() {
+        const label = document.createElement('div')
+        label.id = 'hotbar-label'
+        label.className = 'hotbar-label'
+        label.textContent = ''
+        document.body.appendChild(label)
+        return label
     }
 
     updateHotbarUI() {
@@ -289,58 +317,65 @@ export class BlockInteractor {
             const slotData = this.inventory.getSlot(idx)
             this.renderSlot(slot, slotData, idx === this.selectedIndex, `${idx + 1}`)
         })
+        this.updateHotbarLabel()
     }
 
     createInventoryUI() {
+        const panel = document.createElement('div')
+        panel.id = 'hud-inventory'
+        panel.className = 'hud-inventory-panel'
+        panel.style.display = 'none'
+
+        const stopBubble = (e) => {
+            e.stopPropagation()
+        }
+        ;['click', 'mousedown', 'mouseup', 'wheel', 'contextmenu'].forEach(evt => {
+            panel.addEventListener(evt, stopBubble)
+        })
+
+        const title = document.createElement('div')
+        title.className = 'hud-panel-title'
+        title.textContent = '物品栏 (E 关闭)'
+        panel.appendChild(title)
+
         const inv = document.createElement('div')
-        inv.style.position = 'absolute'
-        inv.style.left = '50%'
-        inv.style.top = '50%'
-        inv.style.transform = 'translate(-50%, -50%)'
-        inv.style.display = 'none'
-        inv.style.gridTemplateColumns = 'repeat(9, 1fr)'
-        inv.style.gap = '6px'
-        inv.style.padding = '12px'
-        inv.style.background = 'rgba(0,0,0,0.6)'
-        inv.style.border = '1px solid rgba(255,255,255,0.2)'
-        inv.style.borderRadius = '8px'
-        inv.style.color = '#fff'
-        inv.style.fontFamily = 'monospace'
-        inv.style.zIndex = '1500'
+        inv.className = 'hud-inventory-grid'
+        panel.appendChild(inv)
 
         for (let i = 0; i < this.inventory.size; i++) {
             const slot = document.createElement('div')
-            slot.style.display = 'grid'
-            slot.style.placeItems = 'center'
-            slot.style.padding = '6px'
-            slot.style.minWidth = '64px'
-            slot.style.minHeight = '64px'
-            slot.style.borderRadius = '8px'
+            slot.className = 'hud-slot inventory-slot'
             slot.dataset.index = i
 
             const icon = this.createIcon(this.blockMeta.default)
-            icon.style.width = '48px'
-            icon.style.height = '48px'
             const count = document.createElement('div')
             count.className = 'hud-count'
-            count.style.position = 'absolute'
-            count.style.right = '6px'
-            count.style.bottom = '2px'
-            count.style.fontSize = '12px'
-            count.style.textShadow = '0 1px 1px rgba(0,0,0,0.6)'
 
             const wrapper = document.createElement('div')
-            wrapper.style.position = 'relative'
+            wrapper.className = 'hud-slot-inner'
             wrapper.appendChild(icon)
             wrapper.appendChild(count)
 
             slot.appendChild(wrapper)
             inv.appendChild(slot)
             this.inventorySlots.push(slot)
+
+            slot.addEventListener('click', (e) => {
+                if (!this.inventoryOpen) return
+                e.stopPropagation()
+                this.handleSlotClick(i)
+            })
+
+            slot.addEventListener('contextmenu', (e) => {
+                if (!this.inventoryOpen) return
+                e.preventDefault()
+                e.stopPropagation()
+                this.handleSlotRightClick(i)
+            })
         }
 
-        document.body.appendChild(inv)
-        return inv
+        document.body.appendChild(panel)
+        return panel
     }
 
     updateInventoryUI() {
@@ -349,6 +384,109 @@ export class BlockInteractor {
             this.renderSlot(slot, data, false, `${idx + 1}`)
         })
         this.updateHotbarUI()
+        this.updateHeldIcon()
+    }
+
+    handleSlotClick(index) {
+        if (!this.inventory) return
+        const slotData = this.inventory.getSlot(index)
+
+        // 拾取
+        if (!this.heldItem && slotData) {
+            this.heldItem = { ...slotData }
+            this.inventory.slots[index] = null
+        } else if (this.heldItem) {
+            if (!slotData) {
+                this.inventory.slots[index] = { ...this.heldItem }
+                this.heldItem = null
+            } else if (slotData.type === this.heldItem.type) {
+                this.inventory.slots[index] = { type: slotData.type, count: slotData.count + this.heldItem.count }
+                this.heldItem = null
+            } else {
+                this.inventory.slots[index] = { ...this.heldItem }
+                this.heldItem = { ...slotData }
+            }
+        }
+
+        this.updateInventoryUI()
+    }
+
+    handleSlotRightClick(index) {
+        if (!this.inventory) return
+        const slotData = this.inventory.getSlot(index)
+
+        if (this.heldItem) {
+            // 放置单个
+            if (!slotData) {
+                this.inventory.slots[index] = { type: this.heldItem.type, count: 1 }
+                this.heldItem.count -= 1
+            } else if (slotData.type === this.heldItem.type) {
+                this.inventory.slots[index] = { type: slotData.type, count: slotData.count + 1 }
+                this.heldItem.count -= 1
+            } else {
+                // 不同类型则交换
+                this.inventory.slots[index] = { ...this.heldItem }
+                this.heldItem = { ...slotData }
+            }
+            if (this.heldItem && this.heldItem.count <= 0) {
+                this.heldItem = null
+            }
+        } else if (slotData) {
+            // 拆分一半
+            const take = Math.ceil(slotData.count / 2)
+            this.heldItem = { type: slotData.type, count: take }
+            const remain = slotData.count - take
+            this.inventory.slots[index] = remain > 0 ? { type: slotData.type, count: remain } : null
+        }
+
+        this.updateInventoryUI()
+    }
+
+    updateHeldIcon() {
+        if (!this.heldIcon) return
+        const { holder, icon, count } = this.heldIcon
+        if (!this.heldItem) {
+            holder.style.display = 'none'
+            return
+        }
+        const preview = this.previewRenderer.getPreview(this.heldItem.type)
+        if (preview) {
+            icon.style.backgroundImage = `url(${preview})`
+            icon.style.backgroundColor = 'rgba(0,0,0,0.1)'
+            icon.textContent = ''
+        } else {
+            const meta = this.blockMeta[this.heldItem.type] || this.blockMeta.default
+            icon.style.backgroundImage = 'none'
+            icon.style.background = `linear-gradient(135deg, ${meta.color}, ${meta.secondary})`
+            icon.textContent = meta.short
+        }
+        count.textContent = this.heldItem.count > 1 ? this.heldItem.count : ''
+        holder.style.display = 'block'
+        this.updateHotbarLabel()
+    }
+
+    stashHeldItem() {
+        if (!this.heldItem) return
+        const success = this.inventory.add(this.heldItem.type, this.heldItem.count)
+        if (success) {
+            this.heldItem = null
+            this.updateInventoryUI()
+            this.updateHotbarLabel()
+        }
+    }
+
+    updateHotbarLabel() {
+        if (!this.hotbarLabel) return
+        const slot = this.inventory.getSlot(this.selectedIndex)
+        if (!slot) {
+            this.hotbarLabel.textContent = ''
+            this.hotbarLabel.style.opacity = '0'
+            return
+        }
+        const def = this.blockDefs.get(slot.type)
+        const name = def?.name || slot.type
+        this.hotbarLabel.textContent = name
+        this.hotbarLabel.style.opacity = '1'
     }
 
     /**
@@ -433,13 +571,18 @@ export class BlockInteractor {
                 if (num >= 1 && num <= this.hotbarSize) {
                     this.selectedIndex = num - 1
                     this.updateHotbarUI()
+                    this.updateHotbarLabel()
                 }
             }
 
             // E 打开/关闭背包
             if (e.code === 'KeyE') {
-                this.inventoryOpen = !this.inventoryOpen
-                this.inventoryUI.style.display = this.inventoryOpen ? 'grid' : 'none'
+                const next = !this.inventoryOpen
+                if (!next) {
+                    this.stashHeldItem()
+                }
+                this.inventoryOpen = next
+                this.inventoryUI.style.display = this.inventoryOpen ? 'flex' : 'none'
                 if (this.inventoryOpen && document.pointerLockElement) {
                     document.exitPointerLock()
                 }
@@ -452,6 +595,10 @@ export class BlockInteractor {
         })
 
         window.addEventListener('mousedown', (e) => {
+            if (this.inventoryOpen) {
+                e.stopPropagation()
+                return
+            }
             if (e.button === 2) e.preventDefault()
             if (e.button === 0) {
                 this.startBreaking()
@@ -461,6 +608,10 @@ export class BlockInteractor {
         })
 
         window.addEventListener('mouseup', (e) => {
+            if (this.inventoryOpen) {
+                e.stopPropagation()
+                return
+            }
             if (e.button === 0) {
                 this.stopBreaking()
             }
@@ -468,10 +619,29 @@ export class BlockInteractor {
 
         // 滚轮切换热键栏
         window.addEventListener('wheel', (e) => {
+            if (this.inventoryOpen) {
+                e.stopPropagation()
+                return
+            }
             const dir = Math.sign(e.deltaY)
             this.selectedIndex = (this.selectedIndex + dir + this.hotbarSize) % this.hotbarSize
             this.updateHotbarUI()
+            this.updateHotbarLabel()
         })
+
+        window.addEventListener('mousemove', (e) => {
+            if (!this.heldIcon || !this.heldItem) return
+            this.heldIcon.holder.style.left = `${e.clientX + 6}px`
+            this.heldIcon.holder.style.top = `${e.clientY + 6}px`
+        })
+
+        window.addEventListener('click', (e) => {
+            if (!this.inventoryOpen) return
+            const target = e.target
+            if (target.closest('#hud-inventory') || target.closest('#hud-hotbar') || target.closest('#hud-held')) return
+            e.stopPropagation()
+            e.preventDefault()
+        }, true)
     }
 
     /**
@@ -677,8 +847,16 @@ export class BlockInteractor {
         const { x, y, z } = this.currentTarget
         this.crackOverlay.position.set(x, y, z)
         this.crackOverlay.visible = true
-        // 根据进度调整裂纹可见度
-        this.crackOverlay.material.opacity = Math.min(0.8, progress * 0.9)
+        // 根据进度调整破坏可见度与阶段纹理
+        const stages = 5
+        const stage = Math.min(stages, Math.max(0, Math.floor(progress * (stages + 1))))
+        if (this.crackOverlay.material._stage !== stage) {
+            const tex = this.world.voxelBuilder.factory.createDestructionTexture(stage, stages)
+            this.crackOverlay.material.map = tex
+            this.crackOverlay.material._stage = stage
+            this.crackOverlay.material.needsUpdate = true
+        }
+        this.crackOverlay.material.opacity = Math.min(1, 0.4 + progress * 0.8)
     }
 
     hideCrackOverlay() {

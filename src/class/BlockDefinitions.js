@@ -6,7 +6,8 @@ import { blocks, tools } from '../blocks/blocks.js'
 export class BlockDefinitions {
     constructor() {
         this.map = new Map()
-        blocks.forEach(def => this.map.set(def.id, def))
+        blocks.forEach((def, idx) => this.map.set(def.id, { ...def, _index: idx }))
+        this.idList = blocks.map(b => b.id)
         this.tools = tools || {}
     }
 
@@ -46,12 +47,26 @@ export class BlockDefinitions {
         if (!def) return { transparent: false, opacity: 1.0 }
         return {
             transparent: !!def.transparent,
-            opacity: def.opacity !== undefined ? def.opacity : 1.0
+            opacity: def.opacity !== undefined ? def.opacity : 1.0,
+            renderLayer: def.renderLayer || 'solid'
         }
     }
 
     getToolPower(toolId) {
         if (!toolId) return this.tools.empty ?? 0.6
         return this.tools[toolId] ?? this.tools.default ?? 1.0
+    }
+
+    getIndex(id) {
+        const def = this.get(id)
+        return def && def._index !== undefined ? def._index : -1
+    }
+
+    getIdByIndex(idx) {
+        return this.idList[idx] || null
+    }
+
+    getAllIds() {
+        return [...this.idList]
     }
 }
