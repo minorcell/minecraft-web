@@ -291,6 +291,79 @@ export class TextureFactory {
         return canvas || null
     }
 
+    /**
+     * 生成破坏进度纹理（阶段 0-5）
+     * 视觉：裂纹 + 不规则挖空，阶段越高挖空越多
+     */
+    createDestructionTexture(stage = 0, totalStages = 5) {
+        const s = Math.max(0, Math.min(totalStages, stage | 0))
+        const key = `destruction_${s}_${totalStages}`
+        if (this.textureCache[key]) return this.textureCache[key]
+
+        const canvas = document.createElement('canvas')
+        canvas.width = 64
+        canvas.height = 64
+        const ctx = canvas.getContext('2d')
+        ctx.imageSmoothingEnabled = false
+        ctx.clearRect(0, 0, 64, 64)
+
+        // 基础裂纹
+        ctx.strokeStyle = '#111'
+        ctx.lineWidth = 3
+        ctx.globalAlpha = 0.9
+        const rand = this.seededRandom(s * 17 + 3)
+        ctx.beginPath()
+        let x = rand() * 30 + 17
+        let y = rand() * 30 + 17
+        ctx.moveTo(x, y)
+        const segments = 7
+        for (let i = 0; i < segments; i++) {
+            x += (rand() - 0.5) * 18
+            y += (rand() - 0.5) * 18
+            x = Math.max(4, Math.min(60, x))
+            y = Math.max(4, Math.min(60, y))
+            ctx.lineTo(x, y)
+        }
+        ctx.stroke()
+
+        // 次要裂纹
+        ctx.strokeStyle = '#222'
+        ctx.lineWidth = 2
+        ctx.globalAlpha = 0.7
+        for (let i = 0; i < 4; i++) {
+            ctx.beginPath()
+            const bx = rand() * 50 + 7
+            const by = rand() * 50 + 7
+            ctx.moveTo(bx, by)
+            ctx.lineTo(bx + (rand() - 0.5) * 22, by + (rand() - 0.5) * 22)
+            ctx.stroke()
+        }
+
+        // 挖空破碎效果：阶段越高，挖空面积越大
+        ctx.globalCompositeOperation = 'destination-out'
+        const holes = 6 + s * 4
+        const maxSize = 10 + s * 2
+        for (let i = 0; i < holes; i++) {
+            const w = 4 + rand() * maxSize
+            const h = 4 + rand() * maxSize
+            const hx = rand() * (64 - w)
+            const hy = rand() * (64 - h)
+            ctx.fillRect(hx, hy, w, h)
+        }
+
+        ctx.globalCompositeOperation = 'source-over'
+        ctx.globalAlpha = 1.0
+
+        const tex = new THREE.CanvasTexture(canvas)
+        tex.magFilter = THREE.NearestFilter
+        tex.minFilter = THREE.NearestFilter
+        tex.colorSpace = THREE.SRGBColorSpace
+
+        this.textureCache[key] = tex
+        this.canvasCache[key] = canvas
+        return tex
+    }
+
     fillNoise(ctx, color1, color2, factor, seed = 0) {
         // Base fill
         ctx.fillStyle = color1

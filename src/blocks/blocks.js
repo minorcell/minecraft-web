@@ -52,7 +52,7 @@ export const blocks = [
     breakable: true,
     drops: [{ id: 'leaves', count: 1 }],
     transparent: true,
-    opacity: 1.0,
+    opacity: 0.7,
     renderLayer: 'alpha',
     textures: { all: 'leaves' }
   },

@@ -75,7 +75,7 @@ export class BlockInteractor {
      */
     createCrackOverlay() {
         const geo = new THREE.BoxGeometry(1.01, 1.01, 1.01)
-        const texture = this.world.voxelBuilder.factory.createTexture('crack', 0)
+        const texture = this.world.voxelBuilder.factory.createDestructionTexture(0)
         texture.transparent = true
         const mat = new THREE.MeshBasicMaterial({
             map: texture,
@@ -818,8 +818,16 @@ export class BlockInteractor {
         const { x, y, z } = this.currentTarget
         this.crackOverlay.position.set(x, y, z)
         this.crackOverlay.visible = true
-        // 根据进度调整裂纹可见度
-        this.crackOverlay.material.opacity = Math.min(0.8, progress * 0.9)
+        // 根据进度调整破坏可见度与阶段纹理
+        const stages = 5
+        const stage = Math.min(stages, Math.max(0, Math.floor(progress * (stages + 1))))
+        if (this.crackOverlay.material._stage !== stage) {
+            const tex = this.world.voxelBuilder.factory.createDestructionTexture(stage, stages)
+            this.crackOverlay.material.map = tex
+            this.crackOverlay.material._stage = stage
+            this.crackOverlay.material.needsUpdate = true
+        }
+        this.crackOverlay.material.opacity = Math.min(1, 0.4 + progress * 0.8)
     }
 
     hideCrackOverlay() {
