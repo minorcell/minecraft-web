@@ -26,6 +26,7 @@ export class BlockInteractor {
 
         this.highlight = this.createHighlightMesh()
         this.scene.add(this.highlight)
+        this.crosshair = this.createCrosshair()
 
         this.rayDir = new THREE.Vector3()
         this.currentTarget = null
@@ -59,6 +60,46 @@ export class BlockInteractor {
         const mesh = new THREE.LineSegments(edges, mat)
         mesh.visible = false
         return mesh
+    }
+
+    /**
+     * 创建屏幕中心的十字准星（HTML/CSS，不占用3D性能）
+     */
+    createCrosshair() {
+        const crosshair = document.createElement('div')
+        crosshair.id = 'crosshair'
+        crosshair.style.position = 'absolute'
+        crosshair.style.left = '50%'
+        crosshair.style.top = '50%'
+        crosshair.style.transform = 'translate(-50%, -50%)'
+        crosshair.style.width = '14px'
+        crosshair.style.height = '14px'
+        crosshair.style.pointerEvents = 'none'
+        crosshair.style.display = 'block'
+
+        // 水平和垂直线
+        const horizontal = document.createElement('div')
+        horizontal.style.position = 'absolute'
+        horizontal.style.left = '0'
+        horizontal.style.top = '50%'
+        horizontal.style.transform = 'translateY(-50%)'
+        horizontal.style.width = '14px'
+        horizontal.style.height = '2px'
+        horizontal.style.background = 'rgba(255,255,255,0.85)'
+
+        const vertical = document.createElement('div')
+        vertical.style.position = 'absolute'
+        vertical.style.left = '50%'
+        vertical.style.top = '0'
+        vertical.style.transform = 'translateX(-50%)'
+        vertical.style.width = '2px'
+        vertical.style.height = '14px'
+        vertical.style.background = 'rgba(255,255,255,0.85)'
+
+        crosshair.appendChild(horizontal)
+        crosshair.appendChild(vertical)
+        document.body.appendChild(crosshair)
+        return crosshair
     }
 
     /**
@@ -392,11 +433,9 @@ export class BlockInteractor {
         }
 
         this.currentTarget = hit
-        if (hit) {
-            this.highlight.position.set(hit.x, hit.y, hit.z)
-            this.highlight.visible = true
-        } else {
-            this.highlight.visible = false
+        // 取消3D高亮，使用屏幕十字准星
+        this.highlight.visible = false
+        if (!hit) {
             this.stopBreaking()
         }
     }
