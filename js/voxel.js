@@ -33,7 +33,8 @@ export class VoxelBuilder {
             sand: [],
             snow: [],
             cactus: [],
-            flower: []
+            flower: [],
+            bedrock: []
         }
 
         // Generate variants for each material
@@ -87,6 +88,9 @@ export class VoxelBuilder {
 
             // Flower
             this.materials.flower.push(mat(this.factory.createTexture('flower', v)))
+
+            // Bedrock
+            this.materials.bedrock.push(mat(this.factory.createTexture('stone', v)))
         }
 
         // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant}> }>

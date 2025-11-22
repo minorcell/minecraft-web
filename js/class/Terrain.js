@@ -11,6 +11,7 @@ export class Terrain {
         this.settings = {
             worldSize: settings.worldSize || 128,
             bottomLevel: settings.bottomLevel || -10,
+            bedrockLevel: settings.bedrockLevel || -12,
             waterLevel: settings.waterLevel || -5,
             sandLevel: settings.sandLevel || 3,
             snowLevel: settings.snowLevel || 12,
@@ -190,10 +191,12 @@ export class Terrain {
                 }
 
                 // ===== 1. 地下层（从底部到地表） =====
-                for (let y = this.settings.bottomLevel; y < surfaceY; y++) {
+                for (let y = this.settings.bedrockLevel; y < surfaceY; y++) {
                     const depthFromSurface = surfaceY - y
                     let undergroundType
-                    if (surfaceY < this.settings.waterLevel) {
+                    if (y <= this.settings.bedrockLevel + 1) {
+                        undergroundType = 'bedrock'
+                    } else if (surfaceY < this.settings.waterLevel) {
                         // 水下地形：地下层是 sand/stone
                         undergroundType = (depthFromSurface > 7) ? 'stone' : 'sand'
                     } else {

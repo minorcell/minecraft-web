@@ -53,7 +53,8 @@ const world = new World({
 const player = new PlayerController({
     camera,
     scene,
-    terrain: world.terrain
+    terrain: world.terrain,
+    world
 })
 
 const inventory = new Inventory(27, [
@@ -73,7 +74,8 @@ const interactor = new BlockInteractor({
     scene,
     world,
     inventory,
-    guideBook: new GuideBook()
+    guideBook: new GuideBook(),
+    player
 })
 
 // 生成世界

@@ -11,13 +11,15 @@ export class BlockInteractor {
      * @param {import('./World.js').World} options.world
      * @param {import('./Inventory.js').Inventory} options.inventory
      * @param {import('./GuideBook.js').GuideBook} [options.guideBook]
+     * @param {import('./Player.js').PlayerController} [options.player]
      */
-    constructor({ camera, scene, world, inventory, guideBook = null }) {
+    constructor({ camera, scene, world, inventory, guideBook = null, player = null }) {
         this.camera = camera
         this.scene = scene
         this.world = world
         this.inventory = inventory
         this.guideBook = guideBook
+        this.player = player
         this.registry = world.registry
         this.maxDistance = 6
 
@@ -26,6 +28,7 @@ export class BlockInteractor {
 
         this.rayDir = new THREE.Vector3()
         this.currentTarget = null
+        this.lastEmpty = null
 
         this.hotbarSize = 9
         this.selectedIndex = 0
@@ -34,7 +37,15 @@ export class BlockInteractor {
         this.blockMeta = this.createBlockMeta()
         this.hotbarUI = this.createHotbarUI()
         this.inventoryUI = this.createInventoryUI()
+        this.progressUI = this.createProgressUI()
         this.inventoryOpen = false
+        this.isBreaking = false
+        this.breakStart = 0
+        this.breakDuration = 0
+        this.breakTargetKey = null
+        this.drops = []
+        this.dropGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35)
+        this.dropMats = {}
 
         this.initInput()
         this.updateInventoryUI()
@@ -227,7 +238,114 @@ export class BlockInteractor {
         this.updateHotbarUI()
     }
 
+    /**
+     * 破坏进度UI
+     */
+    createProgressUI() {
+        const ui = document.createElement('div')
+        ui.style.position = 'absolute'
+        ui.style.left = '50%'
+        ui.style.top = '50%'
+        ui.style.transform = 'translate(-50%, -50%)'
+        ui.style.width = '48px'
+        ui.style.height = '48px'
+        ui.style.borderRadius = '50%'
+        ui.style.border = '2px solid rgba(255,255,255,0.3)'
+        ui.style.background = 'conic-gradient(#ffd200 0deg, rgba(255,255,255,0.05) 0deg)'
+        ui.style.display = 'none'
+        ui.style.pointerEvents = 'none'
+        ui.style.boxShadow = '0 0 10px rgba(0,0,0,0.4)'
+        ui.style.zIndex = '1600'
+        document.body.appendChild(ui)
+        return ui
+    }
+
+    updateProgressUI(progress) {
+        if (progress <= 0) {
+            this.progressUI.style.display = 'none'
+            return
+        }
+        this.progressUI.style.display = 'block'
+        const deg = Math.min(360, progress * 360)
+        this.progressUI.style.background = `conic-gradient(#ffd200 ${deg}deg, rgba(255,255,255,0.05) ${deg}deg)`
+    }
+
+    getBlockHardness(type) {
+        switch (type) {
+            case 'stone':
+            case 'roof':
+                return 1.2
+            case 'wood':
+            case 'cactus':
+                return 0.8
+            case 'grass':
+            case 'dirt':
+            case 'sand':
+            case 'snow':
+                return 0.4
+            case 'leaves':
+            case 'flower':
+                return 0.2
+            case 'water':
+                return Infinity
+            case 'bedrock':
+                return Infinity
+            default:
+                return 0.6
+        }
+    }
+
+    /**
+     * 当前手持工具的破坏力系数
+     */
+    getToolPower() {
+        const slot = this.inventory.getSlot(this.selectedIndex)
+        if (!slot || slot.count <= 0) {
+            return 0.6 // 空手效率
+        }
+        switch (slot.type) {
+            case 'stone':
+                return 2.0
+            case 'wood':
+                return 1.5
+            case 'cactus':
+            case 'sand':
+                return 1.1
+            default:
+                return 1.0
+        }
+    }
+
+    targetKey(t) {
+        return `${t.x},${t.y},${t.z}`
+    }
+
+    spawnDrop(type, x, y, z) {
+        if (!this.dropMats[type]) {
+            const meta = this.blockMeta[type] || this.blockMeta.default
+            this.dropMats[type] = new THREE.MeshStandardMaterial({
+                color: meta.color,
+                emissive: meta.secondary,
+                emissiveIntensity: 0.1
+            })
+        }
+        const mesh = new THREE.Mesh(this.dropGeo, this.dropMats[type])
+        mesh.position.set(x, y, z)
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+        this.scene.add(mesh)
+
+        this.drops.push({
+            type,
+            mesh,
+            vel: new THREE.Vector3((Math.random() - 0.5) * 1.5, 2 + Math.random() * 0.5, (Math.random() - 0.5) * 1.5)
+        })
+    }
+
     initInput() {
+        // 禁用默认右键菜单，确保右键放置可用
+        window.addEventListener('contextmenu', (e) => e.preventDefault())
+
         window.addEventListener('keydown', (e) => {
             // 热键栏 1-9
             if (e.code.startsWith('Digit')) {
@@ -256,9 +374,15 @@ export class BlockInteractor {
         window.addEventListener('mousedown', (e) => {
             if (e.button === 2) e.preventDefault()
             if (e.button === 0) {
-                this.breakBlock()
+                this.startBreaking()
             } else if (e.button === 2) {
                 this.placeBlock()
+            }
+        })
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button === 0) {
+                this.stopBreaking()
             }
         })
 
@@ -278,6 +402,7 @@ export class BlockInteractor {
         const origin = this.camera.position.clone()
         const step = 0.2
         let hit = null
+        this.lastEmpty = null
 
         for (let t = 0; t < this.maxDistance; t += step) {
             const point = origin.clone().add(this.rayDir.clone().multiplyScalar(t))
@@ -288,6 +413,8 @@ export class BlockInteractor {
             if (this.registry.has(bx, by, bz)) {
                 hit = { x: bx, y: by, z: bz }
                 break
+            } else {
+                this.lastEmpty = { x: bx, y: by, z: bz }
             }
         }
 
@@ -297,15 +424,15 @@ export class BlockInteractor {
             this.highlight.visible = true
         } else {
             this.highlight.visible = false
+            this.stopBreaking()
         }
     }
 
     /**
      * 简单破坏：移除方块并刷新chunk
      */
-    breakBlock() {
-        if (!this.currentTarget) return
-        const { x, y, z } = this.currentTarget
+    breakBlockInstant(target) {
+        const { x, y, z } = target
         const type = this.registry.get(x, y, z)
 
         // 水方块不允许直接挖掉
@@ -313,26 +440,54 @@ export class BlockInteractor {
 
         this.world.voxelBuilder.removeBlock(x, y, z)
 
-        // 将掉落加入背包
+        // 生成掉落实体
         if (type) {
-            this.inventory.add(type, 1)
-            this.updateInventoryUI()
+            this.spawnDrop(type, x + 0.2 * (Math.random() - 0.5), y + 0.6, z + 0.2 * (Math.random() - 0.5))
         }
 
-        // 简单水流：若邻近有水，则用水填充当前挖空的方块
+        // 简单水流：仅在水位以下或相邻侧面有水且下方有支撑时填充
         const neighbors = [
             [1, 0, 0], [-1, 0, 0],
             [0, 1, 0], [0, -1, 0],
             [0, 0, 1], [0, 0, -1]
         ]
+        const waterLevel = this.world.terrain.settings.waterLevel
         for (const [dx, dy, dz] of neighbors) {
-            if (this.registry.get(x + dx, y + dy, z + dz) === 'water') {
-                this.world.voxelBuilder.addBlock('water', x, y, z)
+            const nx = x + dx
+            const ny = y + dy
+            const nz = z + dz
+            if (this.registry.get(nx, ny, nz) === 'water') {
+                // 下方需要有方块或位于水位以下，避免水悬空
+                const below = this.registry.get(x, y - 1, z)
+                if (y <= waterLevel || below) {
+                    this.world.voxelBuilder.addBlock('water', x, y, z)
+                }
                 break
             }
         }
 
         this.world.refreshChunkAt(x, z)
+    }
+
+    /**
+     * 开始破坏计时
+     */
+    startBreaking() {
+        if (!this.currentTarget) return
+        const type = this.registry.get(this.currentTarget.x, this.currentTarget.y, this.currentTarget.z)
+        const hardness = this.getBlockHardness(type)
+        if (!type || hardness === Infinity) return
+        this.isBreaking = true
+        this.breakStart = performance.now()
+        const toolPower = this.getToolPower()
+        this.breakDuration = (hardness / toolPower) * 1000
+        this.breakTargetKey = this.targetKey(this.currentTarget)
+    }
+
+    stopBreaking() {
+        this.isBreaking = false
+        this.breakTargetKey = null
+        this.updateProgressUI(0)
     }
 
     /**
@@ -344,10 +499,18 @@ export class BlockInteractor {
         if (!slot || slot.count <= 0) return
         const type = slot.type
 
-        const normal = this.getPlacementNormal()
-        const px = this.currentTarget.x + normal.x
-        const py = this.currentTarget.y + normal.y
-        const pz = this.currentTarget.z + normal.z
+        // 优先使用上一次射线的空位（命中的方块外侧空气格）
+        let px, py, pz
+        if (this.lastEmpty) {
+            px = this.lastEmpty.x
+            py = this.lastEmpty.y
+            pz = this.lastEmpty.z
+        } else {
+            const normal = this.getPlacementNormal()
+            px = this.currentTarget.x + normal.x
+            py = this.currentTarget.y + normal.y
+            pz = this.currentTarget.z + normal.z
+        }
 
         // 避免覆盖已有方块
         if (this.registry.has(px, py, pz)) return
@@ -376,5 +539,61 @@ export class BlockInteractor {
 
     update() {
         this.updateHighlight()
+
+        // 破坏计时更新
+        if (this.isBreaking) {
+            const now = performance.now()
+            const targetChanged = !this.currentTarget || this.targetKey(this.currentTarget) !== this.breakTargetKey
+            if (targetChanged) {
+                this.stopBreaking()
+            } else {
+                const progress = (now - this.breakStart) / this.breakDuration
+                this.updateProgressUI(progress)
+                if (progress >= 1) {
+                    this.breakBlockInstant(this.currentTarget)
+                    this.stopBreaking()
+                }
+            }
+        } else {
+            this.updateProgressUI(0)
+        }
+
+        this.updateDrops()
+    }
+
+    /**
+     * 掉落物更新：重力、简单地面碰撞、拾取
+     */
+    updateDrops() {
+        if (!this.player) return
+        const ground = this.terrain ? this.terrain : this.world.terrain
+        const playerPos = this.player.position
+        const gravity = 30
+        const pickupRadius = 1.2
+        const remaining = []
+
+        for (const drop of this.drops) {
+            drop.vel.y -= gravity * (1 / 60)
+            drop.mesh.position.add(drop.vel.clone().multiplyScalar(1 / 60))
+
+            const groundY = ground.getHeight(drop.mesh.position.x, drop.mesh.position.z) + 0.2
+            if (drop.mesh.position.y <= groundY) {
+                drop.mesh.position.y = groundY
+                drop.vel.y *= -0.2
+                drop.vel.x *= 0.7
+                drop.vel.z *= 0.7
+            }
+
+            // 拾取检测
+            if (drop.mesh.position.distanceTo(playerPos) <= pickupRadius) {
+                this.inventory.add(drop.type, 1)
+                this.updateInventoryUI()
+                this.scene.remove(drop.mesh)
+                continue
+            }
+
+            remaining.push(drop)
+        }
+        this.drops = remaining
     }
 }
