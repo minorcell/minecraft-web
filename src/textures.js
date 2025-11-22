@@ -289,16 +289,77 @@ export class TextureFactory {
                 break
 
             case 'wood_side':
-                this.fillNoise(ctx, '#8b4513', '#7a3402', 0.1, seed)
-                // Variable wood streaks
-                const rand2 = this.seededRandom(seed)
-                ctx.fillStyle = '#6a2400'
-                const streakCount = 4 + Math.floor(rand2() * 4)
-                for (let i = 0; i < streakCount; i++) {
-                    const x = 5 + i * (50 / streakCount) + rand2() * 5
-                    ctx.globalAlpha = 0.8
-                    ctx.fillRect(x, 0, 2 + rand2() * 3, 64)
+                // 基础木色（棕色渐变）
+                this.fillNoise(ctx, '#8b4513', '#7a3402', 0.12, seed)
+
+                // 初始化随机数生成器（避免重复声明）
+                const randWood = this.seededRandom(seed * 2 + 1)
+                const randDetail = this.seededRandom(seed * 3 + 2)
+
+                // 添加木结（圆形深色区域）
+                for (let i = 0; i < 3; i++) {
+                    const x = randWood() * 64
+                    const y = randWood() * 64
+                    const radius = 4 + randWood() * 8
+                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
+                    gradient.addColorStop(0, '#5a3515')
+                    gradient.addColorStop(0.7, '#4a2a0a')
+                    gradient.addColorStop(1, '#2a1505')
+                    ctx.fillStyle = gradient
+                    ctx.globalAlpha = 0.7
+                    ctx.beginPath()
+                    ctx.arc(x, y, radius, 0, Math.PI * 2)
+                    ctx.fill()
+
+                    // 木结中心的亮斑
+                    ctx.globalAlpha = 0.3
+                    ctx.fillStyle = '#a07a50'
+                    ctx.beginPath()
+                    ctx.arc(x + radius * 0.2, y - radius * 0.2, radius * 0.4, 0, Math.PI * 2)
+                    ctx.fill()
                 }
+
+                // 主木纹（更自然的曲线）
+                ctx.fillStyle = '#6a2400'
+                for (let i = 0; i < 8; i++) {
+                    const baseX = randWood() * 64  // 改为使用 randWood 避免作用域问题
+                    ctx.globalAlpha = 0.6 + randDetail() * 0.3
+                    const width = 1 + randDetail() * 2
+
+                    // 绘制S形曲线
+                    ctx.beginPath()
+                    for (let y = 0; y <= 64; y += 2) {
+                        const offset = Math.sin((y + i * 8) * 0.15) * 3 +
+                                     Math.sin((y + i * 5) * 0.08) * 2
+                        const x = baseX + offset + (randDetail() - 0.5) * 2
+                        if (y === 0) ctx.moveTo(x, y)
+                        else ctx.lineTo(x, y)
+                    }
+                    ctx.lineWidth = width
+                    ctx.stroke()
+                }
+
+                // 细木纹（垂直线条）
+                ctx.fillStyle = '#5a3515'
+                ctx.globalAlpha = 0.25  // 降低透明度使纹理更淡
+                for (let i = 0; i < 15; i++) {
+                    const x = randDetail() * 64
+                    const height = 20 + randDetail() * 44
+                    const y = randDetail() * 44
+                    ctx.fillRect(x, y, 1, height)
+                }
+
+                // 木纹方向的明暗变化（去掉深色条纹，仅保留微妙变化）
+                ctx.globalAlpha = 0.03  // 进一步降低透明度
+                for (let i = 0; i < 6; i++) {
+                    const x = randWood() * 64
+                    const gradient = ctx.createLinearGradient(x, 0, x + 8, 64)
+                    gradient.addColorStop(0, 'rgba(140, 100, 70, 0.2)')  // 使用很淡的浅棕色替代深色
+                    gradient.addColorStop(1, 'transparent')
+                    ctx.fillStyle = gradient
+                    ctx.fillRect(x, 0, 8, 64)
+                }
+
                 ctx.globalAlpha = 1.0
                 break
 
@@ -663,36 +724,208 @@ export class TextureFactory {
                 break
 
             case 'glass':
-                ctx.fillStyle = '#add8e6'
-                ctx.globalAlpha = 0.3
+                // 基础玻璃色（淡蓝色半透明）
+                const glassGradient = ctx.createLinearGradient(0, 0, 64, 64)
+                glassGradient.addColorStop(0, '#add8e6')
+                glassGradient.addColorStop(0.5, '#b8e0f0')
+                glassGradient.addColorStop(1, '#a0d0e8')
+                ctx.fillStyle = glassGradient
+                ctx.globalAlpha = 0.25
                 ctx.fillRect(0, 0, 64, 64)
-                ctx.globalAlpha = 1.0
+
+                // 添加边框
+                ctx.globalAlpha = 0.4
                 ctx.strokeStyle = '#ffffff'
                 ctx.lineWidth = 2
                 ctx.strokeRect(0, 0, 64, 64)
-                // Variant glint
-                const rand7 = this.seededRandom(seed)
-                ctx.beginPath()
-                const glintX = 10 + rand7() * 20
-                const glintY = 10 + rand7() * 20
-                ctx.moveTo(glintX, glintY)
-                ctx.lineTo(glintX + 10, glintY + 10)
-                ctx.stroke()
+
+                // 初始化随机数生成器
+                const randGlass = this.seededRandom(seed * 2 + 1)
+
+                // 添加水平反射条纹
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)'
+                ctx.lineWidth = 1
+                for (let i = 0; i < 6; i++) {
+                    const y = randGlass() * 64
+                    ctx.globalAlpha = 0.15 + randGlass() * 0.25
+                    ctx.beginPath()
+                    ctx.moveTo(0, y)
+                    ctx.lineTo(64, y + randGlass() * 6 - 3)
+                    ctx.stroke()
+                }
+
+                // 添加垂直反射条纹
+                for (let i = 0; i < 5; i++) {
+                    const x = randGlass() * 64
+                    ctx.globalAlpha = 0.1 + randGlass() * 0.2
+                    ctx.beginPath()
+                    ctx.moveTo(x, 0)
+                    ctx.lineTo(x + randGlass() * 6 - 3, 64)
+                    ctx.stroke()
+                }
+
+                // 添加折射扭曲效果（波状线条）
+                ctx.strokeStyle = 'rgba(173, 216, 230, 0.3)'
+                ctx.lineWidth = 1.5
+                for (let i = 0; i < 4; i++) {
+                    const startX = randGlass() * 64
+                    const startY = randGlass() * 64
+                    ctx.globalAlpha = 0.2
+                    ctx.beginPath()
+                    for (let j = 0; j < 5; j++) {
+                        const px = startX + (randGlass() - 0.5) * 20
+                        const py = startY + (randGlass() - 0.5) * 20
+                        if (j === 0) ctx.moveTo(px, py)
+                        else ctx.lineTo(px, py)
+                    }
+                    ctx.stroke()
+                }
+
+                // 添加高光点（模拟阳光照射）
+                for (let i = 0; i < 8; i++) {
+                    const x = randGlass() * 64
+                    const y = randGlass() * 64
+                    const size = 2 + randGlass() * 4
+                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size)
+                    gradient.addColorStop(0, 'rgba(255,255,255,0.8)')
+                    gradient.addColorStop(0.5, 'rgba(255,255,255,0.4)')
+                    gradient.addColorStop(1, 'transparent')
+                    ctx.fillStyle = gradient
+                    ctx.globalAlpha = 0.6
+                    ctx.beginPath()
+                    ctx.arc(x, y, size, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+
+                // 添加深度感的阴影渐变
+                const shadowGradient = ctx.createRadialGradient(32, 32, 10, 32, 32, 50)
+                shadowGradient.addColorStop(0, 'transparent')
+                shadowGradient.addColorStop(1, 'rgba(0,0,0,0.2)')
+                ctx.globalAlpha = 0.5
+                ctx.fillStyle = shadowGradient
+                ctx.fillRect(0, 0, 64, 64)
+
+                ctx.globalAlpha = 1.0
                 break
 
-            case 'roof':
-                this.fillNoise(ctx, '#a52a2a', '#941919', 0.1, seed)
-                // Enhanced bricks
-                const rand8 = this.seededRandom(seed)
+            case 'roof': {
+                // 基础瓦片色（深红到浅红渐变）
+                this.fillNoise(ctx, '#a52a2a', '#941919', 0.12, seed)
+
+                // 初始化随机数生成器
+                const randRoof = this.seededRandom(seed * 2 + 1)
+                const randDetail = this.seededRandom(seed * 3 + 2)
+
+                // 绘制瓦片网格
                 ctx.fillStyle = '#730808'
-                const brickOffset = rand8() > 0.5 ? 0 : 16
+                const brickOffset = randRoof() > 0.5 ? 0 : 16
+
+                // 水平分割线
                 for (let y = 0; y < 64; y += 16) {
+                    ctx.globalAlpha = 0.8
                     ctx.fillRect(0, y, 64, 2)
+                }
+
+                // 垂直分割线
+                for (let x = brickOffset; x < 64; x += 32) {
+                    ctx.globalAlpha = 0.7
+                    ctx.fillRect(x, 0, 2, 64)
+                }
+
+                // 添加每片瓦的凹凸感（明暗变化）
+                for (let y = 0; y < 64; y += 16) {
                     for (let x = brickOffset; x < 64; x += 32) {
-                        ctx.fillRect(x, y, 2, 16)
+                        const centerX = x + 8
+                        const centerY = y + 8
+                        const gradient = ctx.createRadialGradient(
+                            centerX, centerY, 2,
+                            centerX, centerY, 10
+                        )
+                        gradient.addColorStop(0, 'rgba(255,255,255,0.2)')
+                        gradient.addColorStop(0.5, 'rgba(180,40,40,0.1)')
+                        gradient.addColorStop(1, 'rgba(0,0,0,0.3)')
+                        ctx.globalAlpha = 0.6
+                        ctx.fillStyle = gradient
+                        ctx.fillRect(x, y, 16, 16)
                     }
                 }
+
+                // 添加瓦片破损（缺角和裂纹）
+                for (let i = 0; i < 8; i++) {
+                    const x = randRoof() * 64
+                    const y = randRoof() * 64
+                    const size = 2 + randRoof() * 4
+                    ctx.globalAlpha = 0.4
+                    ctx.fillStyle = '#450505'
+
+                    // 绘制不规则缺口
+                    ctx.beginPath()
+                    ctx.moveTo(x, y)
+                    ctx.lineTo(x + size, y + randRoof() * size)
+                    ctx.lineTo(x + randRoof() * size, y + size)
+                    ctx.closePath()
+                    ctx.fill()
+
+                    // 裂纹
+                    ctx.strokeStyle = '#5a0a0a'
+                    ctx.lineWidth = 1
+                    ctx.globalAlpha = 0.3
+                    ctx.beginPath()
+                    ctx.moveTo(x, y)
+                    ctx.lineTo(x + randRoof() * size, y + randRoof() * size)
+                    ctx.stroke()
+                }
+
+                // 添加苔藓和老化痕迹（绿色斑点）
+                for (let i = 0; i < 12; i++) {
+                    const x = randDetail() * 64
+                    const y = randDetail() * 64
+                    const size = 1 + randDetail() * 3
+                    ctx.globalAlpha = 0.25
+                    ctx.fillStyle = randDetail() > 0.5 ? '#4a7c3a' : '#5a8c4a'
+                    ctx.beginPath()
+                    ctx.arc(x, y, size, 0, Math.PI * 2)
+                    ctx.fill()
+
+                    // 苔藓边缘更深
+                    ctx.globalAlpha = 0.15
+                    ctx.fillStyle = '#3a6c2a'
+                    ctx.beginPath()
+                    ctx.arc(x + size * 0.3, y + size * 0.3, size * 0.5, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+
+                // 添加高光（阳光照射）
+                for (let i = 0; i < 6; i++) {
+                    const x = randRoof() * 64
+                    const y = randRoof() * 64
+                    const size = 2 + randRoof() * 3
+                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size * 2)
+                    gradient.addColorStop(0, 'rgba(255,255,255,0.6)')
+                    gradient.addColorStop(0.3, 'rgba(255,200,200,0.3)')
+                    gradient.addColorStop(1, 'transparent')
+                    ctx.globalAlpha = 0.7
+                    ctx.fillStyle = gradient
+                    ctx.beginPath()
+                    ctx.arc(x, y, size * 2, 0, Math.PI * 2)
+                    ctx.fill()
+                }
+
+                // 添加阴影细节（瓦片间的缝隙）
+                ctx.globalAlpha = 0.2
+                ctx.fillStyle = '#000000'
+                for (let y = 0; y < 64; y += 16) {
+                    for (let x = brickOffset; x < 64; x += 32) {
+                        // 底部阴影
+                        ctx.fillRect(x + 2, y + 14, 12, 1)
+                        // 右侧阴影
+                        ctx.fillRect(x + 14, y + 2, 1, 12)
+                    }
+                }
+
+                ctx.globalAlpha = 1.0
                 break
+            }
 
             case 'crack':
                 // 裂纹纹理，透明背景用于覆盖
