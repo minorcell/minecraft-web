@@ -44,7 +44,7 @@ const world = new World({
     settings: {
         worldSize: 256,
         villageCount: 8,
-        treeCount: 300,
+        treeCount: 520,
         grassCount: 2000
     },
     viewDistance: 6

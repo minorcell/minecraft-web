@@ -25,7 +25,7 @@ export class World {
         this.settings = {
             worldSize: options.worldSize || 128,
             villageCount: options.villageCount || 8,
-            treeCount: options.treeCount || 150,
+            treeCount: options.treeCount || 520,
             grassCount: options.grassCount || 1000,
             seed: options.seed || Date.now(),
             ...options.settings
