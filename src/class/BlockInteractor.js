@@ -26,6 +26,7 @@ export class BlockInteractor {
 
         this.highlight = this.createHighlightMesh()
         this.scene.add(this.highlight)
+        this.crosshair = this.createCrosshair()
 
         this.rayDir = new THREE.Vector3()
         this.currentTarget = null
@@ -59,6 +60,46 @@ export class BlockInteractor {
         const mesh = new THREE.LineSegments(edges, mat)
         mesh.visible = false
         return mesh
+    }
+
+    /**
+     * 创建屏幕中心的十字准星（HTML/CSS，不占用3D性能）
+     */
+    createCrosshair() {
+        const crosshair = document.createElement('div')
+        crosshair.id = 'crosshair'
+        crosshair.style.position = 'absolute'
+        crosshair.style.left = '50%'
+        crosshair.style.top = '50%'
+        crosshair.style.transform = 'translate(-50%, -50%)'
+        crosshair.style.width = '14px'
+        crosshair.style.height = '14px'
+        crosshair.style.pointerEvents = 'none'
+        crosshair.style.display = 'block'
+
+        // 水平和垂直线
+        const horizontal = document.createElement('div')
+        horizontal.style.position = 'absolute'
+        horizontal.style.left = '0'
+        horizontal.style.top = '50%'
+        horizontal.style.transform = 'translateY(-50%)'
+        horizontal.style.width = '14px'
+        horizontal.style.height = '2px'
+        horizontal.style.background = 'rgba(255,255,255,0.85)'
+
+        const vertical = document.createElement('div')
+        vertical.style.position = 'absolute'
+        vertical.style.left = '50%'
+        vertical.style.top = '0'
+        vertical.style.transform = 'translateX(-50%)'
+        vertical.style.width = '2px'
+        vertical.style.height = '14px'
+        vertical.style.background = 'rgba(255,255,255,0.85)'
+
+        crosshair.appendChild(horizontal)
+        crosshair.appendChild(vertical)
+        document.body.appendChild(crosshair)
+        return crosshair
     }
 
     /**
@@ -392,11 +433,9 @@ export class BlockInteractor {
         }
 
         this.currentTarget = hit
-        if (hit) {
-            this.highlight.position.set(hit.x, hit.y, hit.z)
-            this.highlight.visible = true
-        } else {
-            this.highlight.visible = false
+        // 取消3D高亮，使用屏幕十字准星
+        this.highlight.visible = false
+        if (!hit) {
             this.stopBreaking()
         }
     }
@@ -411,16 +450,34 @@ export class BlockInteractor {
         // 水方块不允许直接挖掉
         if (type === 'water') return
 
-        this.world.voxelBuilder.removeBlock(x, y, z)
+        // 收集要清除的方块位置（仙人掌需整株摧毁）
+        const positions = [{ x, y, z }]
+        if (type === 'cactus') {
+            // 向上收集连续仙人掌
+            let offset = 1
+            while (this.registry.get(x, y + offset, z) === 'cactus') {
+                positions.push({ x, y: y + offset, z })
+                offset++
+            }
+            // 向下收集连续仙人掌（防止中间破坏）
+            offset = -1
+            while (this.registry.get(x, y + offset, z) === 'cactus') {
+                positions.push({ x, y: y + offset, z })
+                offset--
+            }
+        }
 
         // 生成掉落实体
         const drops = this.blockDefs.getDrops(type)
-        drops.forEach(drop => {
-            const count = drop.count || 1
-            for (let i = 0; i < count; i++) {
-                this.spawnDrop(drop.id, x + 0.2 * (Math.random() - 0.5), y + 0.6, z + 0.2 * (Math.random() - 0.5))
-            }
-        })
+        for (const pos of positions) {
+            this.world.voxelBuilder.removeBlock(pos.x, pos.y, pos.z)
+            drops.forEach(drop => {
+                const count = drop.count || 1
+                for (let i = 0; i < count; i++) {
+                    this.spawnDrop(drop.id, pos.x + 0.2 * (Math.random() - 0.5), pos.y + 0.6, pos.z + 0.2 * (Math.random() - 0.5))
+                }
+            })
+        }
 
         // 简单水流：仅在水位以下或相邻侧面有水且下方有支撑时填充
         const neighbors = [

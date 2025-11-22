@@ -1,8 +1,9 @@
-import { TownHall, Tower, Blacksmith, House, Barn, Storage } from './BuildingTypes.js'
 import { Decoration, Path } from './Decoration.js'
 import { VoxelBuilder } from '../voxel.js'
 import { Terrain } from './Terrain.js'
 import { SeededRandom } from './Random.js'
+import { wireBuildingTypes } from '../config/contentRegistry.js'
+import * as BuildingTypes from './BuildingTypes.js'
 
 /**
  * 村庄类
@@ -30,14 +31,11 @@ export class Village {
         this.decorations = []
 
         // 建筑配置
-        this.buildingConfig = [
-            { type: TownHall, count: 1, priority: 1, distanceRange: [0, 0.2] },
-            { type: Tower, count: 1, priority: 2, distanceRange: [0.5, 0.8] },
-            { type: Blacksmith, count: 1, priority: 3, distanceRange: [0.2, 0.5] },
-            { type: House, count: 3, priority: 4, distanceRange: [0.2, 0.5] },
-            { type: Barn, count: 2, priority: 5, distanceRange: [0.4, 0.7] },
-            { type: Storage, count: 2, priority: 6, distanceRange: [0.3, 0.6] }
-        ]
+        this.buildingConfig = wireBuildingTypes(BuildingTypes)
+        // 默认数量，与配置分离，便于未来扩展
+        this.buildingConfig.forEach(cfg => {
+            cfg.count = cfg.count || 1
+        })
 
         this.occupiedPositions = new Set()
     }
