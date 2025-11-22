@@ -161,31 +161,60 @@ console.time('World Generation')
 
 // Generate Ground
 const WORLD_SIZE = 128 // Reduced for performance with full volume terrain
+const BOTTOM_LEVEL = -10 // Fixed bottom level (flat bedrock)
+const GROUND_DEPTH = 10 // 10 underground layers
 
 for (let x = -WORLD_SIZE; x < WORLD_SIZE; x++) {
     for (let z = -WORLD_SIZE; z < WORLD_SIZE; z++) {
-        const y = getTerrainHeight(x, z)
+        const surfaceY = getTerrainHeight(x, z)
 
-        // Fill down to a reasonable depth to avoid holes when looking from side
-        // For optimization, we only draw the surface and water
+        // Generate from fixed bottom level up to surface
+        // Like Minecraft, the bottom is a flat plane, not based on surface
 
-        if (y < WATER_LEVEL) {
-            // Water
-            for (let w = y; w <= WATER_LEVEL; w++) {
+        if (surfaceY < WATER_LEVEL) {
+            // Water from surface to water level
+            for (let w = surfaceY; w <= WATER_LEVEL; w++) {
                 builder.addBlock('water', x, w, z)
             }
-            // Sand/Dirt bottom
-            builder.addBlock('sand', x, y, z)
+
+            // Underground layers from bottom to surface
+            for (let y = BOTTOM_LEVEL; y < surfaceY; y++) {
+                let type = 'stone'
+
+                // Layered terrain with 10 layers: stone at bottom, sand near surface
+                const depthFromSurface = surfaceY - y
+
+                if (depthFromSurface > 7) {
+                    type = 'stone' // Bottom 3 layers: stone
+                } else {
+                    type = 'sand' // Top 7 layers: sand
+                }
+
+                builder.addBlock(type, x, y, z)
+            }
         } else {
             // Surface block
-            let type = 'grass'
-            if (y <= SAND_LEVEL) type = 'sand'
-            else if (y >= SNOW_LEVEL) type = 'stone' // Snow/Stone peaks
+            let surfaceType = 'grass'
+            if (surfaceY <= SAND_LEVEL) surfaceType = 'sand'
+            else if (surfaceY >= SNOW_LEVEL) surfaceType = 'stone' // Snow/Stone peaks
 
-            builder.addBlock(type, x, y, z)
+            builder.addBlock(surfaceType, x, surfaceY, z)
 
-            // Add some dirt below surface if exposed (simplified: just add one block below)
-            if (y > WATER_LEVEL) builder.addBlock('dirt', x, y - 1, z)
+            // Underground layers from bottom up to just below surface
+            for (let y = BOTTOM_LEVEL; y < surfaceY; y++) {
+                let type = 'stone'
+
+                // Layered terrain with 10 layers: stone at bottom, dirt near surface
+                const depthFromSurface = surfaceY - y
+
+                if (depthFromSurface > 7) {
+                    type = 'stone' // Bottom 3 layers: stone
+                } else {
+                    type = 'dirt' // Top 7 layers: dirt
+                }
+
+                builder.addBlock(type, x, y, z)
+            }
         }
     }
 }
