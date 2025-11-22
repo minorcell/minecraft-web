@@ -6,8 +6,11 @@ import { generateStone } from './generators/stone.js'
 import { generateWoodSide } from './generators/wood_side.js'
 import { generateWoodTop } from './generators/wood_top.js'
 import { generateLeaves } from './generators/leaves.js'
+import { generateSpruceLeaves } from './generators/spruce_leaves.js'
+import { generateBirchLeaves } from './generators/birch_leaves.js'
+import { generateJungleLeaves } from './generators/jungle_leaves.js'
 import { generateSand } from './generators/sand.js'
-import { generateWater } from './generators/water.js'
+import { generateWater, generateWaterStill } from './generators/water.js'
 import { generateSnow } from './generators/snow.js'
 import { generateCactus } from './generators/cactus.js'
 import { generateFlower } from './generators/flower.js'
@@ -25,8 +28,13 @@ const generators = {
     wood_side: generateWoodSide,
     wood_top: generateWoodTop,
     leaves: generateLeaves,
+    spruce_leaves: generateSpruceLeaves,
+    birch_leaves: generateBirchLeaves,
+    jungle_leaves: generateJungleLeaves,
     sand: generateSand,
     water: generateWater,
+    water_wavy: generateWater,
+    water_still: generateWaterStill,
     snow: generateSnow,
     cactus: generateCactus,
     flower: generateFlower,

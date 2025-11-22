@@ -51,9 +51,9 @@ export const blocks = [
     solid: true,
     breakable: true,
     drops: [{ id: 'leaves', count: 1 }],
-    transparent: true,
+    transparent: false,
     opacity: 1.0,
-    renderLayer: 'alpha',
+    renderLayer: 'solid',
     textures: { all: 'leaves' }
   },
   {
@@ -63,9 +63,9 @@ export const blocks = [
     solid: true,
     breakable: true,
     drops: [{ id: 'spruce_leaves', count: 1 }],
-    transparent: true,
-    opacity: 0.7,
-    renderLayer: 'alpha',
+    transparent: false,
+    opacity: 1.0,
+    renderLayer: 'solid',
     textures: { all: 'spruce_leaves' }
   },
   {
@@ -75,9 +75,9 @@ export const blocks = [
     solid: true,
     breakable: true,
     drops: [{ id: 'birch_leaves', count: 1 }],
-    transparent: true,
-    opacity: 0.7,
-    renderLayer: 'alpha',
+    transparent: false,
+    opacity: 1.0,
+    renderLayer: 'solid',
     textures: { all: 'birch_leaves' }
   },
   {
@@ -87,9 +87,9 @@ export const blocks = [
     solid: true,
     breakable: true,
     drops: [{ id: 'jungle_leaves', count: 1 }],
-    transparent: true,
-    opacity: 0.7,
-    renderLayer: 'alpha',
+    transparent: false,
+    opacity: 1.0,
+    renderLayer: 'solid',
     textures: { all: 'jungle_leaves' }
   },
   {
