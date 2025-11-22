@@ -64,6 +64,7 @@ export class World {
         this.renderCoordinator = new RenderCoordinator(this.scene, this.voxelBuilder)
         this.workerCoordinator = new WorkerCoordinator({
             terrainSettings: this.terrain.getSettings(),
+            blockIds: this.blockDefs.getAllIds(),
             onChunkData: (payload) => this.applyChunkData(payload),
             onDecorData: (payload) => this.applyDecorData(payload),
             onError: (msg) => console.error(msg)
@@ -75,12 +76,24 @@ export class World {
         this.lastChunkCheckPos = null
         this.lastChunkCheckChunk = null
         this.chunkCheckThreshold = this.terrain.settings.chunkSize * 0.45
+        this.lastChunkCheckTime = 0
+        this.chunkCheckInterval = 0.12 // seconds
     }
 
     applyChunkData(payload) {
-        const { chunkKey, blocks } = payload
-        for (const block of blocks) {
-            this.voxelBuilder.addBlock(block.type, block.x, block.y, block.z, null, chunkKey)
+        const { chunkKey } = payload
+        if (payload.blocks) {
+            for (const block of payload.blocks) {
+                this.voxelBuilder.addBlock(block.type, block.x, block.y, block.z, null, chunkKey)
+            }
+        } else if (payload.xs && payload.ys && payload.zs && payload.types) {
+            const ids = payload.blockIds && payload.blockIds.length ? payload.blockIds : this.blockDefs.getAllIds()
+            const { xs, ys, zs, types } = payload
+            const len = types.length
+            for (let i = 0; i < len; i++) {
+                const type = ids[types[i]] || ids[0]
+                this.voxelBuilder.addBlock(type, xs[i], ys[i], zs[i], null, chunkKey)
+            }
         }
         this.chunkManager.markLoaded(chunkKey)
         this.renderChunk(chunkKey)
@@ -386,6 +399,10 @@ export class World {
      */
     updateChunks(position) {
         if (!position) return
+        const now = performance?.now ? performance.now() : Date.now()
+        if (this.lastChunkCheckTime && (now - this.lastChunkCheckTime) < this.chunkCheckInterval * 1000) {
+            return
+        }
         const { chunkSize } = this.terrain.settings
         const currentChunk = {
             cx: Math.floor(position.x / chunkSize),
@@ -406,6 +423,7 @@ export class World {
 
         this.lastChunkCheckPos = new THREE.Vector3(position.x, 0, position.z)
         this.lastChunkCheckChunk = currentChunk
+        this.lastChunkCheckTime = now
         const diff = this.chunkManager.diff(new THREE.Vector3(position.x, 0, position.z))
         const minCoord = -this.settings.worldSize
         const maxCoord = this.settings.worldSize - 1
