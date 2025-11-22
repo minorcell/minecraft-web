@@ -1,8 +1,19 @@
+:root {
+    --hud-font: 'Minecraftia', 'Press Start 2P', monospace;
+    --hud-bg: rgba(18, 18, 18, 0.82);
+    --hud-border: #d8c07c;
+    --hud-border-dark: #7a6a3a;
+    --hud-slot: #3a3a3a;
+    --hud-slot-dark: #252525;
+    --hud-slot-active: #f3e5a1;
+}
+
 body {
     margin: 0;
     overflow: hidden;
-    background-color: #87CEEB; /* Sky blue background */
+    background-color: #87CEEB;
     cursor: crosshair;
+    font-family: var(--hud-font);
 }
 
 canvas {
@@ -13,15 +24,163 @@ canvas {
     position: absolute;
     top: 14px;
     left: 14px;
-    padding: 8px 12px;
-    background: rgba(0, 0, 0, 0.38);
-    color: #f4f8ff;
-    font-family: monospace;
+    padding: 9px 14px;
+    background: var(--hud-bg);
+    color: #f4f4f4;
     font-size: 14px;
-    border-radius: 8px;
+    border-radius: 10px;
     letter-spacing: 0.5px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     user-select: none;
     pointer-events: none;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-    backdrop-filter: blur(2px);
+    box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, 0.55),
+        0 0 0 2px var(--hud-border-dark),
+        0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+#crosshair div {
+    background: #f2f2f2 !important;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+#hud-hotbar {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 6px;
+    padding: 8px;
+    background: var(--hud-bg);
+    border: 2px solid var(--hud-border-dark);
+    border-radius: 10px;
+    box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, 0.55),
+        0 8px 20px rgba(0, 0, 0, 0.35);
+    color: #fff;
+    user-select: none;
+}
+
+.hud-slot {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(180deg, var(--hud-slot), var(--hud-slot-dark));
+    border: 2px solid #6e6e6e;
+    border-radius: 4px;
+    box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, 0.45),
+        0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.hud-slot.is-active {
+    border-color: var(--hud-slot-active);
+    box-shadow:
+        inset 0 0 0 2px rgba(0, 0, 0, 0.45),
+        0 0 0 2px rgba(243, 229, 161, 0.7),
+        0 0 12px rgba(243, 229, 161, 0.35);
+}
+
+.hud-slot.is-empty .hud-icon {
+    opacity: 0.35;
+    filter: grayscale(0.4);
+}
+
+.hud-slot-inner {
+    position: relative;
+}
+
+.hud-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    image-rendering: pixelated;
+}
+
+.hud-idx {
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    font-size: 11px;
+    color: #cfcfcf;
+    text-shadow: 1px 1px 0 #111;
+    pointer-events: none;
+}
+
+.hud-count {
+    position: absolute;
+    right: 5px;
+    bottom: 2px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #f2f2f2;
+    text-shadow: 1px 1px 0 #111;
+    pointer-events: none;
+}
+
+.hud-inventory-panel {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    background: linear-gradient(180deg, rgba(20, 20, 20, 0.92), rgba(14, 14, 14, 0.92));
+    border: 3px solid var(--hud-border-dark);
+    border-radius: 12px;
+    box-shadow:
+        inset 0 0 0 2px rgba(255, 255, 255, 0.04),
+        0 16px 40px rgba(0, 0, 0, 0.45);
+    color: #f5f5f5;
+    z-index: 1500;
+}
+
+.hud-panel-title {
+    font-size: 14px;
+    color: #f5e6b3;
+    text-shadow: 2px 2px 0 #000;
+    letter-spacing: 0.5px;
+}
+
+.hud-inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 8px;
+}
+
+.inventory-slot {
+    width: 60px;
+    height: 60px;
+}
+
+.inventory-slot .hud-icon {
+    width: 36px;
+    height: 36px;
+}
+
+.hud-held {
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5000;
+}
+
+.hud-held .hud-icon {
+    width: 32px;
+    height: 32px;
 }

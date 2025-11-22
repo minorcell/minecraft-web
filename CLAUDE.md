@@ -4,320 +4,264 @@
 
 ## 项目概述
 
-这是一个受 Minecraft 启发的 **3D 体素世界生成器**，使用 Three.js 构建。它生成程序化的 3D 世界，包含村庄、建筑、地形和装饰元素。代码库最近从单体结构重构为模块化 OOP 架构，包含多个专业类。
+**Cellcraft** 是一个受 Minecraft 启发的 3D 体素世界生成器，使用 Three.js 构建。项目已从简单的生成器演化为完整的游戏体验，包含分块加载、Web Workers 多线程、方块交互、库存系统、天气效果和玩家控制等功能。
 
 ## 核心架构
 
-### 高级系统设计
-
 ```
-World（根管理器）
+Cellcraft 应用
 │
-├── Terrain（程序化生成）
-│   ├── 多八度 Perlin 噪声
-│   ├── 高度缓存（性能优化）
-│   └── 生物群系判断（水/沙/草/石）
+├── World（根管理器）
+│   ├── ChunkManager - 基于视距的分块加载
+│   ├── Terrain - 程序化地形生成
+│   ├── VoxelBuilder - InstancedMesh 渲染
+│   ├── WorkerCoordinator - Web Worker 通信
+│   └── RenderCoordinator - 渲染管线
 │
-├── Village[]（村庄生成）
-│   ├── Building[]（建筑结构）
-│   │   ├── TownHall, Tower, Blacksmith
-│   │   └── House, Barn, Storage
-│   ├── Path[]（道路网络）
-│   └── Decoration[]（围栏、花园、广场、水井）
+├── 玩家系统
+│   ├── PlayerController - 第一人称控制
+│   ├── BlockInteractor - 射线检测放置/破坏方块
+│   ├── Inventory - 27格库存系统
+│   └── GuideBook - 教程系统
 │
-└── VoxelBuilder（渲染）
-    ├── InstancedMesh 批量渲染
-    ├── 9 种材质类型（草、土、石、木、叶、玻璃、屋顶、水、沙）
-    └── 每种材质 4 个纹理变体
+└── 天气系统
+    ├── 雨/雪粒子效果
+    └── 动态光照调整
 ```
 
-### 关键设计模式
+## 关键系统
 
-1. **模板方法模式**（Building 类）
+### 1. 分块加载系统 (`src/class/ChunkManager.js`)
+- 性能优化：世界分为 16x16 方块的分块，基于玩家位置动态加载
+- 视距：可在 `main.js` 配置（默认 6 个分块）
+- 内存管理：自动清理远距离分块
 
-   - 基础 `build()` 方法定义构建流程
-   - 子类重写 `buildWalls()`、`buildRoof()`、`buildDetails()`
+### 2. Web Worker 多线程 (`src/core/WorkerCoordinator.js`)
+- 地形和装饰生成在 Worker 中进行，避免阻塞主线程
+- `terrainWorker.js`：生成分块地形
+- `decorWorker.js`：放置装饰（树木、草地、建筑）
 
-2. **策略模式**（村庄建筑定位）
+### 3. 方块系统 (`src/class/BlockDefinitions.js`, `src/class/BlockStore.js`)
+- 集中式方块类型管理
+- 支持添加新方块类型（方块定义 + 纹理 + 材质）
 
-   - 基于距离的建筑类型定位策略
-   - 可在 `Village.buildingConfig[]` 中配置
+### 4. 体素渲染 (`src/voxel.js`)
+- Three.js InstancedMesh 批量渲染
+- 9 种方块类型，每种 4 个纹理变体
+- 水材质支持透明度（0.7 不透明度）
 
-3. **组合模式**（世界层次结构）
+### 5. 程序化纹理 (`src/textures.js`)
+- Canvas API 程序化生成
+- 基于种子的随机确保变体一致性
+- 64x64 分辨率
 
-   - World → Village → Building/Decoration
-   - 每一层管理其子元素
+### 6. 地形生成 (`src/class/Terrain.js`)
+- 多层 Perlin 噪声
+- 生物群系：水（-4）、沙（-3）、雪（12）
+- 生成顺序：地下层 → 地表 → 水层
 
-4. **建造者模式**（VoxelBuilder）
+### 7. 村庄系统 (`src/class/Village.js`)
+- 径向分布：TownHall（中心）→ 住宅区 → 外围防御
+- 反重叠：使用 occupiedSet 防止建筑碰撞
 
-   - 累积方块，一次性渲染全部
-   - 使用 Three.js InstancedMesh 提升性能
+### 8. 建筑系统 (`src/class/Building.js`, `src/class/BuildingTypes.js`)
+- 模板方法模式：基类 build() + 子类自定义
+- 6 种建筑：TownHall、Tower、Blacksmith、House、Barn、Storage
 
-## 重要系统
+### 9. 装饰系统 (`src/class/Decoration.js`)
+- 自然元素：树、草地、花朵
+- 结构装饰：围栏、广场、水井、喷泉、道路
 
-### 1. 地形生成（`js/class/Terrain.js`）
+### 10. 玩家控制 (`src/class/Player.js`)
+- WASD 移动 + 鼠标视角
+- 地形碰撞检测
+- 为分块加载提供位置追踪
 
-- **多层噪声**：两个不同尺度的 Perlin 噪声层
-- **生物群系判断**：基于高度阈值
-  - `waterLevel`：-5（默认）
-  - `sandLevel`：3
-  - `snowLevel`：12
-- **高度缓存**：基于 Map 的缓存以提升性能
-- **地形生成顺序**：
-  1. 地下层（土/石或沙/石）
-  2. 地表方块（草/沙/石）
-  3. 水层（从 surfaceY+1 到 waterLevel）
+### 11. 方块交互 (`src/class/BlockInteractor.js`)
+- 基于射线检测：左键破坏，右键放置
+- 数字键选择库存槽位
+- 与 GuideBook 集成显示教程
 
-### 2. 体素渲染（`js/voxel.js`）
+### 12. 库存系统 (`src/class/Inventory.js`)
+- 27 格网格库存
+- 默认物品：草、土、石、木、沙、雪、仙人掌、花、叶
 
-- 使用 Three.js `InstancedMesh` 实现高效的批量渲染
-- 9 种材质类型，每种 4 个纹理变体
-- 材质支持多面纹理（草和木）
-- 水有透明度（0.7 不透明度）
+### 13. 天气系统 (`src/class/WeatherSystem.js`)
+- 雨/雪粒子效果
+- 云层覆盖影响光照
+- 动态环境光/定向光强度
 
-### 3. 程序化纹理（`js/textures.js`）
+### 14. 事件系统 (`src/core/EventBus.js`)
+- 发布/订阅模式解耦系统
+- 使用示例：`events.emit('chunk:loaded', key)`，`events.on('chunk:loaded', callback)`
 
-- 基于 Canvas 的程序化生成
-- 64x64 纹理，包含噪声、图案和变化
-- 种子随机数确保变体一致性
-- 纹理类型：
-  - `grass_top`、`grass_side`（多面）
-  - `dirt`、`stone`、`sand`
-  - `wood_side`、`wood_top`（多面）
-  - `leaves`、`glass`、`roof`、`water`
+## 项目结构
 
-### 4. 村庄布局系统（`js/class/Village.js`）
+```
+src/
+├── class/              # 核心类
+│   ├── ChunkManager.js    # 分块管理
+│   ├── World.js           # 世界管理器
+│   ├── Terrain.js         # 地形生成
+│   ├── Player.js          # 玩家控制
+│   ├── BlockInteractor.js # 方块交互
+│   ├── Inventory.js       # 库存
+│   ├── WeatherSystem.js   # 天气
+│   ├── Village.js         # 村庄
+│   ├── Building.js        # 建筑
+│   └── Decoration.js      # 装饰
+├── core/               # 核心系统
+│   ├── EventBus.js        # 事件系统
+│   ├── RenderCoordinator.js
+│   └── WorkerCoordinator.js
+├── worker/             # Web Workers
+│   ├── terrainWorker.js
+│   └── decorWorker.js
+├── main.js             # 应用入口
+├── voxel.js            # 体素渲染
+└── textures.js         # 纹理生成
+```
 
-建筑使用径向距离策略定位：
+## 常用开发任务
 
-- **TownHall（市政厅）**：0-20% 半径（中心）
-- **Tower（塔楼）**：50-80% 半径（外围防御）
-- **Blacksmith/House（铁匠铺/民居）**：20-50% 半径（居住区）
-- **Barn（谷仓）**：40-70% 半径（农业区）
-- **Storage（储藏室）**：30-60% 半径（中心存储）
+### 运行应用
+1. 启动本地服务器（ES 模块需要）：
+   ```bash
+   python -m http.server 8000
+   # 或
+   npx serve
+   ```
+2. 浏览器打开：`http://localhost:8000`
 
-### 5. 建筑系统（`js/class/Building.js`）
-
-- 建造使用模板方法模式
-- 所有建筑使用：地基 + 墙体 + 屋顶 + 细节
-- 通过 `occupiedSet` 检查位置防止重叠
-- `BuildingTypes.js` 中的子类：
-  - `TownHall`：10x10x8，石制地基，金字塔屋顶
-  - `Tower`：6x6x12，防御结构带窗户
-  - `Blacksmith`：8x8x5，工业建筑带锻造装饰
-  - `House`：6x6x5，住宅带门窗
-  - `Barn`：12x8x6，农业建筑带大门
-  - `Storage`：6x6x4，简易存储建筑
-
-### 6. 装饰系统（`js/class/Decoration.js`）
-
-自然和结构装饰：
-
-- **Tree（树）**：随机高度（3-6），树干 + 树叶
-- **Fence（围栏）**：2格高柱带水平横杆
-- **Grass（草地）**：2-5 簇，多层带花朵
-- **Garden（花园）**：3x3 地块带花朵
-- **Square（广场）**：村庄中心的石制广场
-- **Well（水井）**：石制井壁带水
-- **Fountain（喷泉）**：装饰性水景
-- **Path（道路）**：使用线性插值连接建筑
-
-## 常见开发任务
-
-### 修改世界生成
-
-要更改世界参数，编辑 `js/main.js`：
-
+### 修改世界设置（`src/main.js`）
 ```javascript
 const world = new World({
-  scene: scene,
-  settings: {
-    worldSize: 128, // 世界尺寸（半尺寸）
-    villageCount: 8, // 村庄数量
-    treeCount: 100, // 自然树木
-    grassCount: 1000, // 草丛簇数
-  },
+    scene: scene,
+    settings: {
+        worldSize: 256,      // 世界半尺寸
+        villageCount: 8,     // 村庄数量
+        treeCount: 300,      // 树木数量
+        grassCount: 2000,    // 草丛数量
+        seed: Date.now()     // 世界种子
+    },
+    viewDistance: 6         // 分块视距
 })
 ```
 
-### 调整地形设置
-
-修改 `js/class/Terrain.js` 构造函数或运行时更新：
-
+### 调整地形参数（`src/class/Terrain.js`）
 ```javascript
-const terrain = new Terrain({
-  worldSize: 128,
-  bottomLevel: -10,
-  waterLevel: -5,
-  sandLevel: 3,
-  snowLevel: 12,
-  groundDepth: 10,
-  noiseScale1: 0.01, // 大尺度特征
-  noiseScale2: 0.05, // 小尺度细节
-  noiseAmplitude1: 10, // 山地高度
-  noiseAmplitude2: 2, // 表面变化
+this.terrain = new Terrain({
+    worldSize: 256,
+    bottomLevel: -10,
+    waterLevel: -4,
+    sandLevel: -3,
+    snowLevel: 12,
+    groundDepth: 10,
+    chunkSize: 16,
+    seed: this.seed
 })
 ```
 
-### 添加新建筑
-
-1. 在 `js/class/BuildingTypes.js` 中创建新类：
-
+### 添加新建筑类型
+1. 在 `src/class/BuildingTypes.js` 创建类：
 ```javascript
 export class NewBuilding extends Building {
-  constructor(options = {}) {
-    super({
-      ...options,
-      type: "newbuilding",
-      width: 8,
-      depth: 8,
-      height: 6,
-      wallMaterial: "wood",
-      roofMaterial: "roof",
-    })
-  }
-
-  buildWalls(builder) {
-    // 自定义墙体逻辑
-  }
-
-  buildRoof(builder) {
-    // 自定义屋顶逻辑
-  }
+    constructor(options = {}) {
+        super({
+            ...options,
+            type: 'newbuilding',
+            width: 8,
+            depth: 8,
+            height: 6
+        })
+    }
+    buildWalls(builder) { /* 自定义逻辑 */ }
+    buildRoof(builder) { /* 自定义逻辑 */ }
 }
 ```
-
-2. 在 `js/class/Village.js` 的 Village 的 buildingConfig 中添加：
-
+2. 在 `src/class/Village.js` 的 buildingConfig 中添加：
 ```javascript
 { type: NewBuilding, count: 1, priority: 4, distanceRange: [0.2, 0.5] }
 ```
 
-### 自定义材质
-
-编辑 `js/voxel.js` 中的材质定义：
-
-```javascript
-// 示例：修改水的透明度
-this.materials.water.push(
-  mat(this.factory.createTexture("water", v), true, 0.7)
-)
-
-// 示例：添加新材质
-this.materials.newType = []
-for (let v = 0; v < this.variants; v++) {
-  this.materials.newType.push(mat(this.factory.createTexture("newType", v)))
-}
-```
-
-### 修改纹理
-
-在 `js/textures.js` 中添加纹理生成：
-
-```javascript
-case 'newTexture':
-    this.fillNoise(ctx, '#color1', '#color2', 0.1, seed)
-    // 添加自定义图案逻辑
-    break
-```
-
-### 调试地形问题
-
-需要检查的关键区域：
-
-1. **水覆盖地面**：检查 `generateTerrain()` - 水应从 `surfaceY + 1` 开始
-2. **缺少草地**：验证 `generateTerrain()` 中的表面类型逻辑
-3. **高度计算**：使用 `terrain.getHeight()` 并验证缓存
+### 添加新方块类型
+1. `src/blocks/blocks.js` - 定义方块属性
+2. `src/class/BlockDefinitions.js` - 注册方块
+3. `src/textures.js` - 添加纹理生成
+4. `src/voxel.js` - 注册材质
 
 ### 性能优化
+- 大世界：增加 `viewDistance` 至 8-10，使用 Workers
+- 测试：减少 `worldSize` 到 128，`grassCount` 到 500-1000，`viewDistance` 到 4
+- 监控：浏览器 Performance 标签，分块加载日志
 
-- 地形使用高度缓存（`this.heightCache`）
-- VoxelBuilder 按材质和变体批量实例
-- 对于大型世界，考虑：
-  - 分块系统
-  - 细节层次（LOD）
-  - 视锥体剔除
+### 常见问题调试
+**分块未加载**：
+- 检查 ChunkManager.requiredChunks() 输出
+- 验证 Worker 初始化
+- 查看浏览器网络标签 Worker 脚本错误
+
+**性能问题**：
+- 降低 `viewDistance`（从 6 降到 4）
+- 减少 `grassCount` 和 `treeCount`
+- 检查 Workers 是否启用
+
+**地形生成错误**：
+- 检查种子值
+- 验证 World.js 中地形设置
+- 查看 Worker 控制台错误
+
+**方块交互无效**：
+- 验证 BlockInteractor 射线检测器
+- 检查库存是否有物品
+- 确认事件监听器正确附加
 
 ## 关键文件参考
 
-| 文件                     | 用途                           | 关键类/方法                                                        |
-| ------------------------ | ------------------------------ | ------------------------------------------------------------------ |
-| `js/main.js`             | 场景设置，世界初始化           | Scene, Camera, Renderer, World.generate()                          |
-| `js/class/World.js`      | 顶层世界管理                   | generate(), generateTerrain(), generateVillages(), addNaturalDecorations() |
-| `js/class/Terrain.js`    | 程序化地形生成                 | getHeight(), getSurfaceBlockType(), generateTerrain(), isUnderwater()      |
-| `js/voxel.js`            | 体素渲染系统                   | VoxelBuilder, addBlock(), render()                                 |
-| `js/textures.js`         | 程序化纹理生成                 | TextureFactory, createTexture(), seededRandom()                    |
-| `js/class/Village.js`    | 村庄生成系统                   | generate(), generateBuildings(), generatePaths(), findBuildingPosition()   |
-| `js/class/Building.js`   | 基础建筑架构                   | build(), buildFoundation(), buildWalls(), buildRoof()（模板方法）    |
-| `js/class/Decoration.js` | 装饰元素                       | Tree, Fence, Grass, Garden, Square, Well, Fountain, Path           |
+| 文件 | 用途 | 关键方法 |
+|------|------|---------|
+| `src/main.js` | 应用入口，场景设置 | Scene, Camera, Renderer 初始化 |
+| `src/class/World.js` | 世界管理 | `generate()`, `updateChunks()` |
+| `src/class/ChunkManager.js` | 分块加载 | `requiredChunks()`, `markLoaded()` |
+| `src/class/Player.js` | 玩家控制 | `update()`, 移动, 位置追踪 |
+| `src/class/BlockInteractor.js` | 方块放置/破坏 | 射线检测, 点击处理 |
+| `src/voxel.js` | 体素渲染 | `VoxelBuilder`, `addBlock()` |
+| `src/class/Terrain.js` | 地形生成 | `getHeight()`, `generateTerrain()` |
+| `src/class/WeatherSystem.js` | 天气效果 | `update()`, 粒子系统 |
 
-## 已知问题和解决方案
+## 依赖
 
-### 地形水渲染
+**外部**（通过 CDN 导入）：
+- **Three.js** (v0.160.0)：3D 渲染
+- **simplex-noise** (v4.0.1)：Perlin 噪声（位于 `src/lib/simplex-noise.js`）
 
-- **问题**：水覆盖了地表方块
-- **解决方案**：水层应从 `surfaceY + 1` 开始，而不是 `surfaceY`
-- **位置**：`Terrain.generateTerrain()` 第 159-162 行
-
-### 地表方块类型
-
-- **问题**：陆地区域显示为土而不是草
-- **解决方案**：直接在 `generateTerrain()` 中判断 surface 类型，不依赖 `getSurfaceBlockType()` 的 waterLevel 检查
-- **位置**：`Terrain.generateTerrain()` 第 131-139 行
-
-### 建筑重叠预防
-
-- 建筑在放置前检查 `occupiedSet`
-- 每个建筑标记其占用的区域
-
-### 性能瓶颈
-
-- 大量草丛（1000+）会影响性能
-- 测试时考虑减少 `grassCount` 设置
-- InstancedMesh 批量处理有帮助但有上限
-
-## 最近更改
-
-- **OOP 重构**：将 1000+ 行单体代码转换为 11 个模块化类
-- **增强水效果**：不透明度从 0.4 增加到 0.7，颜色加深
-- **3D 装饰**：增强围栏、作物和草地的建模，使其从平面变为立体
-- **地形逻辑**：修复水层生成和地表方块确定
-- **纹理变体**：每种材质 4 个变体以提供视觉多样性
-
-## 外部依赖
-
-- **Three.js**（v0.160.0）：3D 渲染
-  - 通过 `index.html` 导入映射从 CDN 导入
-- **simplex-noise**（v4.0.1）：地形的 Perlin 噪声
-  - 在 `Terrain` 类中用于高度生成
-
-所有依赖都通过 CDN 链接以 ES 模块形式加载，无需 npm 安装。
-
-## 测试工作流程
-
-1. 启动本地服务器（使用 Live Server 或其他方式）
-2. 在浏览器中打开应用程序
-3. 检查控制台的生成统计信息
-4. 旋转相机检查世界
-5. 修改 `main.js` 或类文件中的参数
-6. 刷新以测试更改
-
-## 配置建议
-
-- **测试用小世界**：将 `worldSize` 减少到 64 或 32
-- **减少村庄数量**：将 `villageCount` 设置为 2-4 以加快生成速度
-- **禁用装饰**：在 `World.generate()` 中注释掉 `addNaturalDecorations()`
-- **专注单一村庄**：将 `villageCount` 设置为 1 并增加大小
+**无需构建**：使用原生 ES 模块，无需打包器。
 
 ## 控制台输出
 
-生成后，控制台显示：
-
+**世界生成完成**：
 ```
 ========== 世界生成完成 ==========
-世界信息: { terrainSize, villageCount, buildingCount, decorationCount }
-村庄统计: { TownHall: 1, Tower: 1, ... }
+世界信息: { terrainSize: 256, villageCount: 8, ... }
+村庄统计: { TownHall: 8, Tower: 4, ... }
 ==================================
 ```
 
-此信息用于验证生成成功和调试放置问题。
+**游戏运行时**：
+```
+Chunk loaded: 5,3
+Weather: raining
+```
+
+使用这些输出调试生成问题和验证系统正常工作。
+
+## 最近变更
+
+- **分块加载**：可扩展世界大小
+- **Web Workers**：多线程地形/装饰生成
+- **方块交互**：完整放置/破坏系统
+- **库存系统**：27格库存选择
+- **天气系统**：动态天气和光照
+- **玩家控制**：第一人称移动
+- **事件系统**：解耦架构
+- **渲染协调**：优化渲染管线
