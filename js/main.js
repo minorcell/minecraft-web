@@ -63,33 +63,454 @@ function markOccupied(x, z, width, depth) {
     }
 }
 
-// Generators
-function createHouse(x, y, z, type) {
-    const width = type === 'large' ? 6 : 4
-    const depth = type === 'large' ? 6 : 4
-    const height = type === 'large' ? 6 : 4
+// ===== VILLAGE GENERATION SYSTEM =====
 
-    if (isOccupied(x, z, width + 2, depth + 2)) return false // +2 for spacing
+// Generate villages with various building types
+function generateVillages() {
+    const villageCount = 8 // Number of villages
+    const villages = []
+
+    // Generate village centers
+    for (let i = 0; i < villageCount; i++) {
+        const centerX = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.5)
+        const centerZ = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.5)
+        const centerY = getTerrainHeight(centerX, centerZ)
+
+        if (centerY > WATER_LEVEL) {
+            villages.push({
+                x: centerX,
+                y: centerY,
+                z: centerZ,
+                radius: 20 + Math.floor(Math.random() * 15) // Village size
+            })
+        }
+    }
+
+    // Generate buildings for each village
+    for (const village of villages) {
+        generateVillageBuildings(village)
+    }
+
+    console.log(`Generated ${villages.length} villages`)
+}
+
+function generateVillageBuildings(village) {
+    const buildings = [
+        { type: 'townhall', count: 1, priority: 1 },
+        { type: 'tower', count: 1, priority: 2 },
+        { type: 'blacksmith', count: 1, priority: 3 },
+        { type: 'house', count: 3, priority: 4 },
+        { type: 'barn', count: 2, priority: 5 },
+        { type: 'farm', count: 3, priority: 6 },
+        { type: 'storage', count: 2, priority: 7 },
+    ]
+
+    const occupiedPositions = new Set()
+
+    for (const building of buildings) {
+        for (let i = 0; i < building.count; i++) {
+            const pos = findBuildingPosition(village, occupiedPositions)
+            if (pos) {
+                switch (building.type) {
+                    case 'townhall':
+                        createTownHall(pos.x, pos.y, pos.z)
+                        break
+                    case 'tower':
+                        createTower(pos.x, pos.y, pos.z)
+                        break
+                    case 'blacksmith':
+                        createBlacksmith(pos.x, pos.y, pos.z)
+                        break
+                    case 'house':
+                        createHouse(pos.x, pos.y, pos.z)
+                        break
+                    case 'barn':
+                        createBarn(pos.x, pos.y, pos.z)
+                        break
+                    case 'farm':
+                        createFarm(pos.x, pos.y, pos.z)
+                        break
+                    case 'storage':
+                        createStorage(pos.x, pos.y, pos.z)
+                        break
+                }
+
+                // Mark occupied
+                const key = `${pos.x},${pos.z}`
+                occupiedPositions.add(key)
+
+                // Add decorative elements
+                if (Math.random() > 0.7) {
+                    createFountain(pos.x, pos.y - 1, pos.z)
+                }
+            }
+        }
+    }
+
+    // Add paths between buildings
+    createVillagePaths(village, occupiedPositions)
+
+    // Add decorative elements like fences and gardens around the village
+    addVillageDecorations(village, occupiedPositions)
+}
+
+function findBuildingPosition(village, occupiedPositions) {
+    const maxAttempts = 50
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const angle = (attempt / maxAttempts) * Math.PI * 2 + Math.random() * 0.5
+        const distance = 5 + Math.random() * (village.radius - 5)
+        const x = Math.floor(village.x + Math.cos(angle) * distance)
+        const z = Math.floor(village.z + Math.sin(angle) * distance)
+        const y = getTerrainHeight(x, z)
+
+        if (y > WATER_LEVEL) {
+            const key = `${x},${z}`
+            if (!occupiedPositions.has(key)) {
+                return { x, y, z }
+            }
+        }
+    }
+    return null
+}
+
+function createVillagePaths(village, occupiedPositions) {
+    // Simple path generation between random points
+    const pathCount = 3
+    for (let i = 0; i < pathCount; i++) {
+        const angle = (i / pathCount) * Math.PI * 2
+        const distance = village.radius * 0.5
+        const x = Math.floor(village.x + Math.cos(angle) * distance)
+        const z = Math.floor(village.z + Math.sin(angle) * distance)
+
+        // Create a simple stone path
+        for (let px = -1; px <= 1; px++) {
+            for (let pz = -1; pz <= 1; pz++) {
+                builder.addBlock('stone', x + px, getTerrainHeight(x + px, z + pz), z + pz)
+            }
+        }
+    }
+}
+
+function addVillageDecorations(village, occupiedPositions) {
+    // Add fences around the village perimeter
+    const fenceCount = 8
+    for (let i = 0; i < fenceCount; i++) {
+        const angle = (i / fenceCount) * Math.PI * 2
+        const distance = village.radius + 2
+        const x = Math.floor(village.x + Math.cos(angle) * distance)
+        const z = Math.floor(village.z + Math.sin(angle) * distance)
+        const y = getTerrainHeight(x, z)
+
+        if (y > WATER_LEVEL) {
+            // Create fence post
+            for (let h = 0; h < 2; h++) {
+                builder.addBlock('wood', x, y + h, z)
+            }
+
+            // Connect to next post with fence segments
+            const nextAngle = ((i + 1) / fenceCount) * Math.PI * 2
+            const nextX = Math.floor(village.x + Math.cos(nextAngle) * distance)
+            const nextZ = Math.floor(village.z + Math.sin(nextAngle) * distance)
+
+            // Simple fence between posts (just a few wood blocks)
+            const midX = Math.floor((x + nextX) / 2)
+            const midZ = Math.floor((z + nextZ) / 2)
+            const midY = getTerrainHeight(midX, midZ)
+
+            if (midY > WATER_LEVEL) {
+                builder.addBlock('wood', midX, midY + 1, midZ)
+            }
+        }
+    }
+
+    // Add small gardens near houses
+    const gardenCount = 5
+    for (let i = 0; i < gardenCount; i++) {
+        const angle = Math.random() * Math.PI * 2
+        const distance = village.radius * 0.7
+        const x = Math.floor(village.x + Math.cos(angle) * distance)
+        const z = Math.floor(village.z + Math.sin(angle) * distance)
+        const y = getTerrainHeight(x, z)
+
+        if (y > WATER_LEVEL) {
+            // Small garden plot
+            for (let gx = -1; gx <= 1; gx++) {
+                for (let gz = -1; gz <= 1; gz++) {
+                    if (Math.random() > 0.4) {
+                        builder.addBlock('dirt', x + gx, y, z + gz)
+                        if (Math.random() > 0.5) {
+                            builder.addBlock('leaves', x + gx, y + 1, z + gz) // Small plants
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ===== BUILDING TYPES =====
+
+function createTownHall(x, y, z) {
+    const width = 10
+    const depth = 10
+    const height = 8
+
+    if (isOccupied(x, z, width, depth)) return false
     markOccupied(x, z, width, depth)
 
-    const wallMat = Math.random() > 0.5 ? 'wood' : 'stone'
-    const roofMat = Math.random() > 0.5 ? 'roof' : 'wood'
-
-    // Floor
+    // Foundation
     for (let i = -width / 2; i < width / 2; i++) {
         for (let j = -depth / 2; j < depth / 2; j++) {
-            builder.addBlock(wallMat, x + i, y + 1, z + j)
+            builder.addBlock('stone', x + i, y, z + j)
+        }
+    }
+
+    // Main building - wood with stone base
+    for (let h = 1; h <= height; h++) {
+        for (let i = -width / 2 + 1; i < width / 2 - 1; i++) {
+            for (let j = -depth / 2 + 1; j < depth / 2 - 1; j++) {
+                if (h <= 2) {
+                    builder.addBlock('stone', x + i, y + h, z + j)
+                } else {
+                    builder.addBlock('wood', x + i, y + h, z + j)
+                }
+            }
+        }
+    }
+
+    // Roof - pyramid style
+    for (let level = 0; level < 4; level++) {
+        const levelSize = width - level * 2
+        for (let i = -levelSize / 2; i < levelSize / 2; i++) {
+            for (let j = -levelSize / 2; j < levelSize / 2; j++) {
+                builder.addBlock('roof', x + i, y + height + level + 1, z + j)
+            }
+        }
+    }
+
+    return true
+}
+
+function createTower(x, y, z) {
+    const size = 6
+    const height = 12
+
+    if (isOccupied(x, z, size, size)) return false
+    markOccupied(x, z, size, size)
+
+    // Stone base
+    for (let h = 0; h <= 3; h++) {
+        for (let i = -size / 2; i < size / 2; i++) {
+            for (let j = -size / 2; j < size / 2; j++) {
+                builder.addBlock('stone', x + i, y + h, z + j)
+            }
+        }
+    }
+
+    // Upper levels - wood
+    for (let h = 4; h <= height; h++) {
+        for (let i = -size / 2 + 1; i < size / 2 - 1; i++) {
+            for (let j = -size / 2 + 1; j < size / 2 - 1; j++) {
+                // Windows on some levels
+                if (h % 2 === 0 && (i === 0 || j === 0)) {
+                    builder.addBlock('glass', x + i, y + h, z + j)
+                } else {
+                    builder.addBlock('wood', x + i, y + h, z + j)
+                }
+            }
+        }
+    }
+
+    // Cone roof
+    for (let level = 0; level < 5; level++) {
+        const levelSize = size - level * 2
+        for (let i = -levelSize / 2; i < levelSize / 2; i++) {
+            for (let j = -levelSize / 2; j < levelSize / 2; j++) {
+                if (levelSize > 0) {
+                    builder.addBlock('roof', x + i, y + height + level + 1, z + j)
+                }
+            }
+        }
+    }
+
+    return true
+}
+
+function createBlacksmith(x, y, z) {
+    const width = 8
+    const depth = 8
+    const height = 5
+
+    if (isOccupied(x, z, width, depth)) return false
+    markOccupied(x, z, width, depth)
+
+    // Stone building
+    for (let h = 0; h <= height; h++) {
+        for (let i = -width / 2; i < width / 2; i++) {
+            for (let j = -depth / 2; j < depth / 2; j++) {
+                if (i === -width / 2 || i === width / 2 - 1 || j === -depth / 2 || j === depth / 2 - 1 || h === 0) {
+                    builder.addBlock('stone', x + i, y + h, z + j)
+                } else if (h === 3 && (i === 0 || j === 0)) {
+                    builder.addBlock('glass', x + i, y + h, z + j) // Windows
+                }
+            }
+        }
+    }
+
+    // Iron roof
+    for (let i = -width / 2 - 1; i <= width / 2; i++) {
+        for (let j = -depth / 2 - 1; j <= depth / 2; j++) {
+            builder.addBlock('roof', x + i, y + height + 1, z + j)
+        }
+    }
+
+    // Forge (decoration)
+    for (let i = -1; i <= 1; i++) {
+        builder.addBlock('stone', x + i, y + 1, z + depth / 2)
+    }
+
+    return true
+}
+
+function createBarn(x, y, z) {
+    const width = 12
+    const depth = 8
+    const height = 6
+
+    if (isOccupied(x, z, width, depth)) return false
+    markOccupied(x, z, width, depth)
+
+    // Large wooden barn
+    for (let h = 0; h <= height; h++) {
+        for (let i = -width / 2; i < width / 2; i++) {
+            for (let j = -depth / 2; j < depth / 2; j++) {
+                if (i === -width / 2 || i === width / 2 - 1 || j === -depth / 2 || j === depth / 2 - 1 || h === 0) {
+                    builder.addBlock('wood', x + i, y + h, z + j)
+                }
+            }
+        }
+    }
+
+    // Door opening
+    for (let h = 1; h <= 3; h++) {
+        builder.addBlock('wood', x, y + h, z + depth / 2 - 1)
+    }
+
+    // Roof
+    for (let i = -width / 2 - 1; i <= width / 2; i++) {
+        for (let j = -depth / 2 - 1; j <= depth / 2; j++) {
+            builder.addBlock('roof', x + i, y + height + 1, z + j)
+        }
+    }
+
+    return true
+}
+
+function createFarm(x, y, z) {
+    const width = 8
+    const depth = 8
+
+    if (isOccupied(x, z, width, depth)) return false
+    markOccupied(x, z, width, depth)
+
+    // Fenced area
+    for (let i = -width / 2; i < width / 2; i++) {
+        for (let j = -depth / 2; j < depth / 2; j++) {
+            // Border fence
+            if (i === -width / 2 || i === width / 2 - 1 || j === -depth / 2 || j === depth / 2 - 1) {
+                builder.addBlock('wood', x + i, y + 1, z + j)
+                if (Math.random() > 0.5) {
+                    builder.addBlock('wood', x + i, y + 2, z + j)
+                }
+            } else {
+                // Farmland
+                if (Math.random() > 0.3) {
+                    builder.addBlock('dirt', x + i, y, z + j)
+                    if (Math.random() > 0.5) {
+                        builder.addBlock('grass', x + i, y + 1, z + j) // Crops
+                    }
+                } else {
+                    builder.addBlock('grass', x + i, y, z + j)
+                }
+            }
+        }
+    }
+
+    return true
+}
+
+function createStorage(x, y, z) {
+    const width = 6
+    const depth = 6
+    const height = 4
+
+    if (isOccupied(x, z, width, depth)) return false
+    markOccupied(x, z, width, depth)
+
+    for (let h = 0; h <= height; h++) {
+        for (let i = -width / 2; i < width / 2; i++) {
+            for (let j = -depth / 2; j < depth / 2; j++) {
+                if (i === -width / 2 || i === width / 2 - 1 || j === -depth / 2 || j === depth / 2 - 1 || h === 0 || h === height) {
+                    builder.addBlock('wood', x + i, y + h, z + j)
+                }
+            }
+        }
+    }
+
+    // Roof
+    for (let i = -width / 2 - 1; i <= width / 2; i++) {
+        for (let j = -depth / 2 - 1; j <= depth / 2; j++) {
+            builder.addBlock('roof', x + i, y + height + 1, z + j)
+        }
+    }
+
+    return true
+}
+
+function createFountain(x, y, z) {
+    // Water basin with stone border
+    for (let i = -2; i <= 2; i++) {
+        for (let j = -2; j <= 2; j++) {
+            if (Math.abs(i) === 2 || Math.abs(j) === 2) {
+                builder.addBlock('stone', x + i, y, z + j)
+                builder.addBlock('stone', x + i, y + 1, z + j)
+            } else {
+                builder.addBlock('water', x + i, y + 1, z + j)
+            }
+        }
+    }
+
+    return true
+}
+
+// Enhanced house
+function createHouse(x, y, z) {
+    const width = 6
+    const depth = 6
+    const height = 5
+
+    if (isOccupied(x, z, width, depth)) return false
+    markOccupied(x, z, width, depth)
+
+    const wallMat = 'wood'
+    const roofMat = 'roof'
+
+    // Foundation
+    for (let i = -width / 2; i < width / 2; i++) {
+        for (let j = -depth / 2; j < depth / 2; j++) {
+            builder.addBlock('stone', x + i, y, z + j)
         }
     }
 
     // Walls
-    for (let h = 2; h < 2 + height; h++) {
+    for (let h = 1; h <= height; h++) {
         for (let i = -width / 2; i < width / 2; i++) {
             for (let j = -depth / 2; j < depth / 2; j++) {
                 if (i === -width / 2 || i === width / 2 - 1 || j === -depth / 2 || j === depth / 2 - 1) {
-                    // Windows
-                    if (h === 3 && (i === 0 || j === 0)) {
-                        builder.addBlock('glass', x + i, y + h, z + j)
+                    if (h === 2 && i === 0) {
+                        builder.addBlock('glass', x + i, y + h, z + j) // Door
+                    } else if (h >= 2 && h <= 3 && (i === -2 || i === 2 || j === -2 || j === 2)) {
+                        builder.addBlock('glass', x + i, y + h, z + j) // Windows
                     } else {
                         builder.addBlock(wallMat, x + i, y + h, z + j)
                     }
@@ -101,15 +522,7 @@ function createHouse(x, y, z, type) {
     // Roof
     for (let i = -width / 2 - 1; i <= width / 2; i++) {
         for (let j = -depth / 2 - 1; j <= depth / 2; j++) {
-            builder.addBlock(roofMat, x + i, y + 2 + height, z + j)
-        }
-    }
-    // Pyramid top
-    for (let k = 1; k < 3; k++) {
-        for (let i = -width / 2 + k; i < width / 2 - k; i++) {
-            for (let j = -depth / 2 + k; j < depth / 2 - k; j++) {
-                builder.addBlock(roofMat, x + i, y + 2 + height + k, z + j)
-            }
+            builder.addBlock(roofMat, x + i, y + height + 1, z + j)
         }
     }
 
@@ -143,8 +556,8 @@ function createTree(x, y, z) {
 
 // Terrain Setup
 const noise2D = createNoise2D()
-const WATER_LEVEL = -2
-const SAND_LEVEL = 0
+const WATER_LEVEL = -4 // Lower water level to reduce water coverage
+const SAND_LEVEL = -3 // Higher sand level to reduce beach area
 const SNOW_LEVEL = 12
 
 function getTerrainHeight(x, z) {
@@ -219,25 +632,14 @@ for (let x = -WORLD_SIZE; x < WORLD_SIZE; x++) {
     }
 }
 
-// Buildings
-let houseCount = 0
-for (let i = 0; i < 100; i++) { // Reduced count further for performance
-    const x = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.8)
-    const z = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.8)
-    const y = getTerrainHeight(x, z)
+// ===== Villages =====
+generateVillages()
 
-    if (y > WATER_LEVEL) { // Don't build underwater
-        const type = Math.random() > 0.7 ? 'large' : 'small'
-        // Adjust createHouse to take y
-        if (createHouse(x, y, z, type)) houseCount++
-    }
-}
-
-// Trees
+// Trees (reduced to make villages more prominent)
 let treeCount = 0
-for (let i = 0; i < 300; i++) {
-    const x = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.9)
-    const z = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 1.9)
+for (let i = 0; i < 150; i++) {
+    const x = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 2)
+    const z = Math.floor((Math.random() - 0.5) * WORLD_SIZE * 2)
     const y = getTerrainHeight(x, z)
 
     if (y > WATER_LEVEL) {
@@ -245,7 +647,7 @@ for (let i = 0; i < 300; i++) {
     }
 }
 
-console.log(`Generated ${houseCount} houses and ${treeCount} trees.`)
+console.log(`Generated ${treeCount} trees across 8 villages.`)
 console.timeEnd('World Generation')
 
 builder.render(scene)

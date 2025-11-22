@@ -66,8 +66,8 @@ export class VoxelBuilder {
             // Roof
             this.materials.roof.push(mat(this.factory.createTexture('roof', v)))
 
-            // Water
-            this.materials.water.push(mat(this.factory.createTexture('water', v), true, 0.7))
+            // Water - more transparent
+            this.materials.water.push(mat(this.factory.createTexture('water', v), true, 0.4))
 
             // Sand
             this.materials.sand.push(mat(this.factory.createTexture('sand', v)))

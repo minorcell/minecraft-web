@@ -140,21 +140,9 @@ export class TextureFactory {
                 break
 
             case 'water':
-                this.fillNoise(ctx, '#0066ff', '#0044dd', 0.15, seed)
-                // Wave patterns
-                const rand6 = this.seededRandom(seed)
-                ctx.strokeStyle = '#0088ff'
-                ctx.globalAlpha = 0.6
-                for (let i = 0; i < 3; i++) {
-                    ctx.beginPath()
-                    ctx.moveTo(0, 20 + i * 15)
-                    for (let x = 0; x < 64; x += 4) {
-                        const y = 20 + i * 15 + Math.sin(x * 0.2) * 2
-                        ctx.lineTo(x, y)
-                    }
-                    ctx.stroke()
-                }
-                ctx.globalAlpha = 1.0
+                // Simple solid color water, no texture for more natural look
+                ctx.fillStyle = '#3388ff'
+                ctx.fillRect(0, 0, 64, 64)
                 break
 
             case 'glass':
