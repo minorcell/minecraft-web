@@ -43,11 +43,12 @@ scene.add(dirLight)
 const world = new World({
     scene: scene,
     settings: {
-        worldSize: 128,
+        worldSize: 256,
         villageCount: 8,
-        treeCount: 100,
-        grassCount: 1000
-    }
+        treeCount: 300,
+        grassCount: 2000
+    },
+    viewDistance: 6
 })
 
 // 生成世界
@@ -63,6 +64,7 @@ console.log('==================================')
 function animate() {
     requestAnimationFrame(animate)
     controls.update()
+    world.updateChunks(camera.position)
     renderer.render(scene, camera)
 }
 animate()

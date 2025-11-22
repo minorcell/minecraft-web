@@ -145,6 +145,56 @@ export class TextureFactory {
                 ctx.fillRect(0, 0, 64, 64)
                 break
 
+            case 'snow':
+                this.fillNoise(ctx, '#f4f7fb', '#e8eff7', 0.08, seed)
+                // 轻微的阴影
+                const randSnow = this.seededRandom(seed)
+                ctx.fillStyle = '#dce5f2'
+                for (let i = 0; i < 40; i++) {
+                    ctx.globalAlpha = 0.15
+                    const x = Math.floor(randSnow() * 64)
+                    const y = Math.floor(randSnow() * 64)
+                    ctx.fillRect(x, y, 2, 2)
+                }
+                ctx.globalAlpha = 1.0
+                break
+
+            case 'cactus':
+                this.fillNoise(ctx, '#3b8c3b', '#2f7a2f', 0.12, seed)
+                // 竖向纹理
+                const randCac = this.seededRandom(seed)
+                ctx.fillStyle = '#2a6a2a'
+                for (let i = 0; i < 6; i++) {
+                    const x = 8 + i * 8 + randCac() * 3
+                    ctx.globalAlpha = 0.6
+                    ctx.fillRect(x, 0, 2, 64)
+                }
+                // 刺点
+                ctx.fillStyle = '#d8e4c0'
+                for (let i = 0; i < 80; i++) {
+                    ctx.globalAlpha = 0.4
+                    const x = Math.floor(randCac() * 64)
+                    const y = Math.floor(randCac() * 64)
+                    ctx.fillRect(x, y, 1, 1)
+                }
+                ctx.globalAlpha = 1.0
+                break
+
+            case 'flower':
+                this.fillNoise(ctx, '#5ea15e', '#4f8f4f', 0.15, seed)
+                // 花点
+                const randFl = this.seededRandom(seed)
+                const petals = ['#ff7eb6', '#ffd966', '#ffb347']
+                for (let i = 0; i < 40; i++) {
+                    ctx.globalAlpha = 0.8
+                    ctx.fillStyle = petals[Math.floor(randFl() * petals.length)]
+                    const x = Math.floor(randFl() * 64)
+                    const y = Math.floor(randFl() * 64)
+                    ctx.fillRect(x, y, 2, 2)
+                }
+                ctx.globalAlpha = 1.0
+                break
+
             case 'glass':
                 ctx.fillStyle = '#add8e6'
                 ctx.globalAlpha = 0.3

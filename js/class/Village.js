@@ -3,6 +3,7 @@ import { Farm } from './Farm.js'
 import { Decoration, Path } from './Decoration.js'
 import { VoxelBuilder } from '../voxel.js'
 import { Terrain } from './Terrain.js'
+import { SeededRandom } from './Random.js'
 
 /**
  * 村庄类
@@ -21,6 +22,8 @@ export class Village {
         this.y = options.y || 0
         this.z = options.z || 0
         this.radius = options.radius || 20
+        this.random = options.random || new SeededRandom('village')
+        this.biome = options.biome || 'plains'
 
         // 村庄组件
         this.buildings = []
@@ -74,7 +77,12 @@ export class Village {
                 const pos = this.findBuildingPosition(terrain, config.type.name, config.distanceRange)
                 if (pos) {
                     // 创建建筑实例
-                    const building = new config.type(pos)
+                    const materialOverrides = this.getBiomeMaterials(config.type.name)
+                    const building = new config.type({
+                        ...pos,
+                        ...materialOverrides,
+                        random: this.random.cloneWithOffset(this.buildings.length + i + 1)
+                    })
 
                     // 建造建筑
                     if (building.build(builder, this.occupiedPositions)) {
@@ -103,8 +111,8 @@ export class Village {
         const [minDist, maxDist] = distanceRange
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const angle = (attempt / maxAttempts) * Math.PI * 2 + Math.random() * 0.5
-            const distance = minDist + Math.random() * (maxDist - minDist)
+            const angle = (attempt / maxAttempts) * Math.PI * 2 + this.random.range(0, 0.5)
+            const distance = minDist + this.random.range(0, maxDist - minDist)
             const x = Math.floor(this.x + Math.cos(angle) * distance * this.radius)
             const z = Math.floor(this.z + Math.sin(angle) * distance * this.radius)
             const y = terrain.getHeight(x, z)
@@ -212,14 +220,14 @@ export class Village {
     addGardens(builder, terrain) {
         const gardenCount = 5
         for (let i = 0; i < gardenCount; i++) {
-            const angle = Math.random() * Math.PI * 2
+            const angle = this.random.range(0, Math.PI * 2)
             const distance = this.radius * 0.7
             const x = Math.floor(this.x + Math.cos(angle) * distance)
             const z = Math.floor(this.z + Math.sin(angle) * distance)
             const y = terrain.getHeight(x, z)
 
             if (!terrain.isUnderwater(x, z)) {
-                const garden = new Decoration.Garden(x, y, z)
+                const garden = new Decoration.Garden(x, y, z, this.random)
                 garden.build(builder, terrain)
                 this.decorations.push(garden)
             }
@@ -259,5 +267,31 @@ export class Village {
             stats[building.type] = (stats[building.type] || 0) + 1
         }
         return stats
+    }
+
+    /**
+     * 按生物群系返回材质覆盖，保持基础方块但更符合环境
+     * @param {string} buildingType
+     * @returns {{wallMaterial?:string, foundationMaterial?:string, roofMaterial?:string}}
+     */
+    getBiomeMaterials(buildingType) {
+        if (this.biome === 'desert' || this.biome === 'beach') {
+            return {
+                wallMaterial: 'sand',
+                foundationMaterial: 'stone',
+                roofMaterial: 'roof'
+            }
+        }
+
+        if (this.biome === 'snow' || this.biome === 'taiga') {
+            return {
+                wallMaterial: 'wood',
+                foundationMaterial: 'stone',
+                roofMaterial: 'roof'
+            }
+        }
+
+        // 默认平原/森林
+        return {}
     }
 }

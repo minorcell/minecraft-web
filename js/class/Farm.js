@@ -1,5 +1,6 @@
 import { Building } from './Building.js'
 import { Storage } from './BuildingTypes.js'
+import { SeededRandom } from './Random.js'
 
 /**
  * 农田类 - Minecraft风格的农田系统
@@ -30,6 +31,8 @@ export class Farm extends Building {
         this.hasIrrigation = options.hasIrrigation !== undefined ? options.hasIrrigation : true
         this.cropType = options.cropType || 'wheat'
         this.hasHut = options.hasHut !== false // 默认有小屋
+        this.random = options.random || new SeededRandom('farm')
+        this.random = options.random || new SeededRandom('farm')
     }
 
     /**
@@ -54,6 +57,14 @@ export class Farm extends Building {
      */
     static markPositionOccupied(x, z, width, depth, occupiedSet) {
         occupiedSet.add(`${x},${z}`)
+    }
+
+    /**
+     * 获取随机数，支持种子随机
+     * @returns {number}
+     */
+    rand() {
+        return this.random ? this.random.float() : Math.random()
     }
 
     /**
@@ -165,7 +176,7 @@ export class Farm extends Building {
                 // 按棋盘格模式种植作物
                 if ((i + j) % 2 === 0) {
                     // 不同生长阶段的作物
-                    const height = 1 + Math.floor(Math.random() * 2)
+                    const height = 1 + Math.floor(this.rand() * 2)
 
                     // 创建茎
                     for (let h = 1; h <= height; h++) {
@@ -174,26 +185,26 @@ export class Farm extends Building {
 
                     // 在顶部添加叶子/麦穗
                     const topHeight = height + 1
-                    if (Math.random() > 0.3) {
+                    if (this.rand() > 0.3) {
                         builder.addBlock('leaves', this.x + i, this.y + topHeight, this.z + j)
                     }
 
                     // 添加侧枝 - 让作物更分散
                     if (height > 1) {
                         const midHeight = Math.floor(height / 2) + 1
-                        if (Math.random() > 0.5) {
+                        if (this.rand() > 0.5) {
                             // 添加左侧枝
                             builder.addBlock('leaves', this.x + i - 1, this.y + midHeight, this.z + j)
                         }
-                        if (Math.random() > 0.5) {
+                        if (this.rand() > 0.5) {
                             // 添加右侧枝
                             builder.addBlock('leaves', this.x + i + 1, this.y + midHeight, this.z + j)
                         }
-                        if (Math.random() > 0.5) {
+                        if (this.rand() > 0.5) {
                             // 添加前后枝
                             builder.addBlock('leaves', this.x + i, this.y + midHeight, this.z + j - 1)
                         }
-                        if (Math.random() > 0.5) {
+                        if (this.rand() > 0.5) {
                             builder.addBlock('leaves', this.x + i, this.y + midHeight, this.z + j + 1)
                         }
                     }

@@ -6,15 +6,24 @@
  * 装饰基类
  */
 export class Decoration {
-    constructor(x, y, z) {
+    constructor(x, y, z, random = null) {
         this.x = x
         this.y = y
         this.z = z
         this.type = 'decoration'
+        this.random = random
     }
 
     getPosition() {
         return { x: this.x, y: this.y, z: this.z }
+    }
+
+    /**
+     * 安全获取随机数，允许传入种子随机源
+     * @returns {number}
+     */
+    rand() {
+        return this.random ? this.random.float() : Math.random()
     }
 
     build(builder, terrain) {
@@ -26,25 +35,90 @@ export class Decoration {
  * 树装饰
  */
 Decoration.Tree = class extends Decoration {
-    constructor(x, y, z) {
-        super(x, y, z)
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} z
+     * @param {SeededRandom|null} random
+     * @param {'oak'|'spruce'|'shrub'} style
+     */
+    constructor(x, y, z, random = null, style = 'oak') {
+        super(x, y, z, random)
         this.type = 'tree'
-        this.height = 3 + Math.floor(Math.random() * 3)
+        this.style = style
+        this.height = 3 + Math.floor(this.rand() * 3)
     }
 
     build(builder, terrain) {
+        if (this.style === 'spruce') {
+            this.buildSpruce(builder)
+            return
+        }
+        if (this.style === 'shrub') {
+            this.buildShrub(builder)
+            return
+        }
+        this.buildOak(builder)
+    }
+
+    /**
+     * 橡木样式：粗短树干 + 球状树冠
+     */
+    buildOak(builder) {
         // 树干
         for (let h = 1; h <= this.height; h++) {
             builder.addBlock('wood', this.x, this.y + h, this.z)
         }
 
-        // 树叶
+        // 树叶球冠
         for (let h = this.height - 1; h <= this.height + 2; h++) {
             for (let i = -2; i <= 2; i++) {
                 for (let j = -2; j <= 2; j++) {
                     if (Math.abs(i) + Math.abs(j) < 3) {
                         if (i === 0 && j === 0 && h < this.height + 1) continue
                         builder.addBlock('leaves', this.x + i, this.y + h, this.z + j)
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 云杉样式：更高的树干 + 锥形树冠
+     */
+    buildSpruce(builder) {
+        const h = this.height + 2 // 云杉更高
+        for (let y = 1; y <= h; y++) {
+            builder.addBlock('wood', this.x, this.y + y, this.z)
+        }
+
+        // 锥形叶子，底部宽，上部窄
+        for (let level = 0; level < 4; level++) {
+            const radius = 3 - level
+            const leafY = this.y + h - level
+            for (let i = -radius; i <= radius; i++) {
+                for (let j = -radius; j <= radius; j++) {
+                    if (Math.abs(i) + Math.abs(j) <= radius + 1) {
+                        builder.addBlock('leaves', this.x + i, leafY, this.z + j)
+                    }
+                }
+            }
+        }
+        // 顶尖
+        builder.addBlock('leaves', this.x, this.y + h + 1, this.z)
+    }
+
+    /**
+     * 灌木样式：矮小的叶团，适合沙漠/灌木丛
+     */
+    buildShrub(builder) {
+        const shrubHeight = 1 + Math.floor(this.rand() * 2)
+        builder.addBlock('wood', this.x, this.y + 1, this.z)
+        for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+                for (let h = 0; h <= shrubHeight; h++) {
+                    if (Math.abs(i) + Math.abs(j) <= 2) {
+                        builder.addBlock('leaves', this.x + i, this.y + 1 + h, this.z + j)
                     }
                 }
             }
@@ -113,8 +187,8 @@ Decoration.Fence = class extends Decoration {
  * 花园装饰
  */
 Decoration.Garden = class extends Decoration {
-    constructor(x, y, z) {
-        super(x, y, z)
+    constructor(x, y, z, random = null) {
+        super(x, y, z, random)
         this.type = 'garden'
         this.size = 3
     }
@@ -122,9 +196,9 @@ Decoration.Garden = class extends Decoration {
     build(builder, terrain) {
         for (let gx = -1; gx <= 1; gx++) {
             for (let gz = -1; gz <= 1; gz++) {
-                if (Math.random() > 0.4) {
+                if (this.rand() > 0.4) {
                     builder.addBlock('dirt', this.x + gx, this.y, this.z + gz)
-                    if (Math.random() > 0.6) {
+                    if (this.rand() > 0.6) {
                         builder.addBlock('leaves', this.x + gx, this.y + 1, this.z + gz) // 花朵
                     }
                 }
@@ -189,28 +263,28 @@ Decoration.Well = class extends Decoration {
  * 草丛装饰 - Minecraft风格的草叶
  */
 Decoration.Grass = class extends Decoration {
-    constructor(x, y, z) {
-        super(x, y, z)
+    constructor(x, y, z, random = null) {
+        super(x, y, z, random)
         this.type = 'grass'
-        this.count = 2 + Math.floor(Math.random() * 4) // 2-5株草
+        this.count = 2 + Math.floor(this.rand() * 4) // 2-5株草
     }
 
     build(builder, terrain) {
         for (let t = 0; t < this.count; t++) {
             // 随机偏移位置
-            const offsetX = Math.floor((Math.random() - 0.5) * 2)
-            const offsetZ = Math.floor((Math.random() - 0.5) * 2)
+            const offsetX = Math.floor((this.rand() - 0.5) * 2)
+            const offsetZ = Math.floor((this.rand() - 0.5) * 2)
             const groundY = terrain.getHeight(this.x + offsetX, this.z + offsetZ)
 
             if (groundY > terrain.settings.waterLevel && groundY < terrain.settings.snowLevel) {
                 // 创建草叶 - 多层高度
-                const height = 1 + Math.floor(Math.random() * 2) // 1-2层高
+                const height = 1 + Math.floor(this.rand() * 2) // 1-2层高
                 for (let h = 1; h <= height; h++) {
                     // 主体草叶
                     builder.addBlock('leaves', this.x + offsetX, groundY + h, this.z + offsetZ)
 
                     // 添加侧叶 - 让草更分散
-                    if (h === height && Math.random() > 0.6) {
+                    if (h === height && this.rand() > 0.6) {
                         // 添加一些侧叶
                         const directions = [
                             { x: 1, z: 0 },
@@ -219,18 +293,57 @@ Decoration.Grass = class extends Decoration {
                             { x: 0, z: -1 }
                         ]
                         // 随机选择1-2个方向添加侧叶
-                        const dirCount = 1 + Math.floor(Math.random() * 2)
+                        const dirCount = 1 + Math.floor(this.rand() * 2)
                         for (let d = 0; d < dirCount; d++) {
-                            const dir = directions[Math.floor(Math.random() * directions.length)]
+                            const dir = directions[Math.floor(this.rand() * directions.length)]
                             builder.addBlock('leaves', this.x + offsetX + dir.x, groundY + h, this.z + offsetZ + dir.z)
                         }
                     }
                 }
 
                 // 随机添加花朵
-                if (Math.random() > 0.7) {
+                if (this.rand() > 0.7) {
                     builder.addBlock('leaves', this.x + offsetX, groundY + height + 1, this.z + offsetZ)
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 仙人掌装饰 - 沙漠群系
+ */
+Decoration.Cactus = class extends Decoration {
+    constructor(x, y, z, random = null) {
+        super(x, y, z, random)
+        this.type = 'cactus'
+        this.height = 2 + Math.floor(this.rand() * 3)
+    }
+
+    build(builder, terrain) {
+        for (let h = 0; h < this.height; h++) {
+            builder.addBlock('cactus', this.x, this.y + 1 + h, this.z)
+        }
+    }
+}
+
+/**
+ * 花簇装饰 - 平原/森林群系
+ */
+Decoration.FlowerCluster = class extends Decoration {
+    constructor(x, y, z, random = null) {
+        super(x, y, z, random)
+        this.type = 'flower'
+        this.count = 3 + Math.floor(this.rand() * 4)
+    }
+
+    build(builder, terrain) {
+        for (let i = 0; i < this.count; i++) {
+            const ox = Math.floor((this.rand() - 0.5) * 3)
+            const oz = Math.floor((this.rand() - 0.5) * 3)
+            const gy = terrain.getHeight(this.x + ox, this.z + oz)
+            if (gy > terrain.settings.waterLevel) {
+                builder.addBlock('flower', this.x + ox, gy + 1, this.z + oz)
             }
         }
     }

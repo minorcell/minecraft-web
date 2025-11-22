@@ -1,4 +1,5 @@
 import { createNoise2D } from 'simplex-noise'
+import { SeededRandom } from './Random.js'
 
 /**
  * 地形管理系统
@@ -17,11 +18,22 @@ export class Terrain {
             noiseScale1: settings.noiseScale1 || 0.01,
             noiseScale2: settings.noiseScale2 || 0.05,
             noiseAmplitude1: settings.noiseAmplitude1 || 10,
-            noiseAmplitude2: settings.noiseAmplitude2 || 2
+            noiseAmplitude2: settings.noiseAmplitude2 || 2,
+            chunkSize: settings.chunkSize || 16,
+            // 生物群系噪声参数
+            temperatureScale: settings.temperatureScale || 0.005,
+            moistureScale: settings.moistureScale || 0.005,
+            seed: settings.seed || Date.now()
         }
 
+        // 种子化随机源，确保地形确定性
+        this.random = new SeededRandom(this.settings.seed)
+
         // 初始化噪声生成器
-        this.noise2D = createNoise2D()
+        this.noise2D = createNoise2D(() => this.random.float())
+        // 额外的气候噪声（使用偏移后的随机源，避免高度噪声相关性）
+        this.temperatureNoise = createNoise2D(() => this.random.cloneWithOffset(101).float())
+        this.moistureNoise = createNoise2D(() => this.random.cloneWithOffset(202).float())
 
         // 地形高度缓存（可选优化）
         this.heightCache = new Map()
@@ -59,16 +71,20 @@ export class Terrain {
      */
     getSurfaceBlockType(x, z) {
         const y = this.getHeight(x, z)
-
         if (y <= this.settings.waterLevel) {
-            // 在水下，不返回表面类型
             return null
-        } else if (y <= this.settings.sandLevel) {
-            return 'sand'
-        } else if (y >= this.settings.snowLevel) {
-            return 'stone'
-        } else {
-            return 'grass'
+        }
+
+        const biome = this.getBiome(x, z)
+        switch (biome.name) {
+            case 'desert':
+            case 'beach':
+                return 'sand'
+            case 'snow':
+            case 'taiga':
+                return 'snow'
+            default:
+                return 'grass'
         }
     }
 
@@ -123,19 +139,54 @@ export class Terrain {
         console.time('Terrain Generation')
 
         const size = this.settings.worldSize
+        const minCoord = -size
+        const maxCoord = size - 1
 
-        for (let x = -size; x < size; x++) {
-            for (let z = -size; z < size; z++) {
+        // 按chunk遍历，便于后续惰性加载
+        const chunkStartX = Math.floor(minCoord / this.settings.chunkSize)
+        const chunkEndX = Math.floor(maxCoord / this.settings.chunkSize)
+        const chunkStartZ = Math.floor(minCoord / this.settings.chunkSize)
+        const chunkEndZ = Math.floor(maxCoord / this.settings.chunkSize)
+
+        for (let cx = chunkStartX; cx <= chunkEndX; cx++) {
+            for (let cz = chunkStartZ; cz <= chunkEndZ; cz++) {
+                this.generateChunk(builder, cx, cz, minCoord, maxCoord)
+            }
+        }
+
+        console.timeEnd('Terrain Generation')
+    }
+
+    /**
+     * 生成单个chunk（目前仍然一次性生成，后续可按需加载）
+     * @param {VoxelBuilder} builder
+     * @param {number} chunkX
+     * @param {number} chunkZ
+     * @param {number} minCoord
+     * @param {number} maxCoord
+     */
+    generateChunk(builder, chunkX, chunkZ, minCoord, maxCoord, chunkKey = null) {
+        const chunkSize = this.settings.chunkSize
+        const startX = chunkX * chunkSize
+        const startZ = chunkZ * chunkSize
+        const endX = startX + chunkSize
+        const endZ = startZ + chunkSize
+
+        const key = chunkKey || `${chunkX},${chunkZ}`
+
+        for (let x = startX; x < endX; x++) {
+            if (x < minCoord || x > maxCoord) continue
+
+            for (let z = startZ; z < endZ; z++) {
+                if (z < minCoord || z > maxCoord) continue
+
                 const surfaceY = this.getHeight(x, z)
 
-                // ===== 获取地表类型 =====
-                let surfaceType
-                if (surfaceY <= this.settings.sandLevel) {
+                // ===== 获取地表类型（按群系） =====
+                let surfaceType = this.getSurfaceBlockType(x, z)
+                if (!surfaceType) {
+                    // 水下默认使用沙子顶部
                     surfaceType = 'sand'
-                } else if (surfaceY >= this.settings.snowLevel) {
-                    surfaceType = 'stone'
-                } else {
-                    surfaceType = 'grass'
                 }
 
                 // ===== 1. 地下层（从底部到地表） =====
@@ -149,21 +200,19 @@ export class Terrain {
                         // 陆地地形：地下层是 dirt/stone
                         undergroundType = (depthFromSurface > 7) ? 'stone' : 'dirt'
                     }
-                    builder.addBlock(undergroundType, x, y, z)
+                    builder.addBlock(undergroundType, x, y, z, null, key)
                 }
 
                 // ===== 2. 地表方块 =====
-                builder.addBlock(surfaceType, x, surfaceY, z)
+                builder.addBlock(surfaceType, x, surfaceY, z, null, key)
 
                 // ===== 3. 水层（水面以下的所有层） =====
                 // 注意：只有当 surfaceY <= waterLevel 时才有水
                 for (let y = surfaceY + 1; y <= this.settings.waterLevel; y++) {
-                    builder.addBlock('water', x, y, z)
+                    builder.addBlock('water', x, y, z, null, key)
                 }
             }
         }
-
-        console.timeEnd('Terrain Generation')
     }
 
     /**
@@ -175,12 +224,76 @@ export class Terrain {
     }
 
     /**
+     * 采样气候噪声，返回温度/湿度 0-1
+     * @param {number} x
+     * @param {number} z
+     * @returns {{temperature:number, moisture:number}}
+     */
+    sampleClimate(x, z) {
+        const t = this.temperatureNoise(x * this.settings.temperatureScale, z * this.settings.temperatureScale)
+        const m = this.moistureNoise(x * this.settings.moistureScale, z * this.settings.moistureScale)
+        // 将噪声映射到 0-1
+        return {
+            temperature: 0.5 * (t + 1),
+            moisture: 0.5 * (m + 1)
+        }
+    }
+
+    /**
+     * 根据高度 + 气候判断生物群系
+     * 简化版，后续可扩展更细分的群系/混合边界
+     * @param {number} x
+     * @param {number} z
+     * @returns {{name:string, temperature:number, moisture:number}}
+     */
+    getBiome(x, z) {
+        const climate = this.sampleClimate(x, z)
+        const h = this.getHeight(x, z)
+
+        // 水面以下或很靠近水面，判定为海/海滩
+        if (h <= this.settings.waterLevel) {
+            return { name: 'ocean', ...climate }
+        }
+        if (h <= this.settings.waterLevel + 1) {
+            return { name: 'beach', ...climate }
+        }
+
+        // 简单阈值决策
+        if (climate.temperature > 0.6 && climate.moisture < 0.35) {
+            return { name: 'desert', ...climate }
+        }
+
+        if (climate.temperature < 0.35 && h >= this.settings.snowLevel - 2) {
+            return { name: 'snow', ...climate }
+        }
+
+        if (climate.temperature < 0.45 && climate.moisture > 0.45) {
+            return { name: 'taiga', ...climate }
+        }
+
+        if (climate.moisture > 0.6) {
+            return { name: 'forest', ...climate }
+        }
+
+        return { name: 'plains', ...climate }
+    }
+
+    /**
      * 更新地形设置
      * @param {object} newSettings
      */
     updateSettings(newSettings) {
+        const seedChanged = newSettings.seed !== undefined && newSettings.seed !== this.settings.seed
         this.settings = { ...this.settings, ...newSettings }
         this.heightCache.clear() // 清空缓存
+
+        if (seedChanged) {
+            // 重新初始化随机源与噪声
+            this.random = new SeededRandom(this.settings.seed)
+            this.noise2D = createNoise2D(() => this.random.float())
+            this.temperatureNoise = createNoise2D(() => this.random.cloneWithOffset(101).float())
+            this.moistureNoise = createNoise2D(() => this.random.cloneWithOffset(202).float())
+        }
     }
 
     /**

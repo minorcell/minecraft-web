@@ -1,12 +1,15 @@
 import * as THREE from 'three'
 import { TextureFactory } from './textures.js'
+import { SeededRandom } from './class/Random.js'
 
 export class VoxelBuilder {
-    constructor(geometry = null) {
+    constructor(options = {}) {
+        const { geometry = null, seed = Date.now() } = options
         // 使用传入的几何体或默认立方体
         this.geometry = geometry || new THREE.BoxGeometry(1, 1, 1)
         this.factory = new TextureFactory()
         this.variants = 4
+        this.variantSeed = SeededRandom.hash(seed)
 
         // Helper to create material
         const mat = (map, transparent = false, opacity = 1.0) => {
@@ -27,7 +30,10 @@ export class VoxelBuilder {
             glass: [],
             roof: [],
             water: [],
-            sand: []
+            sand: [],
+            snow: [],
+            cactus: [],
+            flower: []
         }
 
         // Generate variants for each material
@@ -72,37 +78,80 @@ export class VoxelBuilder {
 
             // Sand
             this.materials.sand.push(mat(this.factory.createTexture('sand', v)))
+
+            // Snow
+            this.materials.snow.push(mat(this.factory.createTexture('snow', v)))
+
+            // Cactus
+            this.materials.cactus.push(mat(this.factory.createTexture('cactus', v)))
+
+            // Flower
+            this.materials.flower.push(mat(this.factory.createTexture('flower', v)))
         }
 
-        // Store matrices and variant info for each material type
-        this.instances = {}
-        for (const key in this.materials) {
-            this.instances[key] = []
-        }
+        // 按 chunk 存储实例：Map<chunkKey, { [type]: Array<{matrix,variant}> }>
+        this.instances = new Map()
+        this.chunkSize = options.chunkSize || 16
 
         this.dummy = new THREE.Object3D()
     }
 
-    // Get a random variant for a material type
-    getRandomVariant(type) {
-        return Math.floor(Math.random() * this.variants)
+    /**
+     * 基于坐标和类型生成稳定的变体索引
+     * @param {string} type
+     * @param {number} x
+     * @param {number} y
+     * @param {number} z
+     * @returns {number}
+     */
+    getVariantFromHash(type, x, y, z) {
+        // 通过整数混合减少碰撞，并保持跨平台一致
+        let h = this.variantSeed
+        h ^= SeededRandom.hash(type)
+        h ^= (x * 374761393) ^ (y * 668265263) ^ (z * 2147483647)
+        h = Math.imul(h ^ (h >>> 15), 2246822519)
+        h ^= h >>> 13
+        return (h >>> 0) % this.variants
     }
 
-    addBlock(type, x, y, z, variant = null) {
-        if (!this.instances[type]) {
+    addBlock(type, x, y, z, variant = null, chunkKey = null) {
+        if (!this.materials[type]) {
             console.warn(`Unknown material type: ${type}`)
             return
         }
 
         // Use provided variant or random
-        const v = variant !== null ? variant : this.getRandomVariant(type)
+        const v = variant !== null ? variant : this.getVariantFromHash(type, x, y, z)
 
         this.dummy.position.set(x, y, z)
         this.dummy.updateMatrix()
-        this.instances[type].push({
+
+        const key = chunkKey || this.getChunkKeyFromPosition(x, z)
+
+        if (!this.instances.has(key)) {
+            this.instances.set(key, {})
+        }
+        const bucket = this.instances.get(key)
+        if (!bucket[type]) {
+            bucket[type] = []
+        }
+
+        bucket[type].push({
             matrix: this.dummy.matrix.clone(),
             variant: v
         })
+    }
+
+    /**
+     * 基于坐标获得chunk key
+     * @param {number} x
+     * @param {number} z
+     * @returns {string}
+     */
+    getChunkKeyFromPosition(x, z) {
+        const cx = Math.floor(x / this.chunkSize)
+        const cz = Math.floor(z / this.chunkSize)
+        return `${cx},${cz}`
     }
 
     /**
@@ -113,12 +162,13 @@ export class VoxelBuilder {
         this.addBlock(block.type, block.x, block.y, block.z, block.variant)
     }
 
-    render(scene) {
-        // Remove old meshes if any (not implemented for simplicity, assuming single render)
+    render(scene, chunkKey = 'default') {
+        const chunkData = this.instances.get(chunkKey)
+        if (!chunkData) return []
 
-        // Group instances by type and variant
-        for (const [type, instances] of Object.entries(this.instances)) {
-            if (instances.length === 0) continue
+        const meshes = []
+        for (const [type, instances] of Object.entries(chunkData)) {
+            if (!instances || instances.length === 0) continue
 
             // Group by variant
             const groups = {}
@@ -128,26 +178,27 @@ export class VoxelBuilder {
                 groups[v].push(instance)
             }
 
-            // Create a mesh for each variant group
             for (const [variant, variantInstances] of Object.entries(groups)) {
                 const material = this.materials[type][variant]
                 const mesh = new THREE.InstancedMesh(this.geometry, material, variantInstances.length)
-
                 for (let i = 0; i < variantInstances.length; i++) {
                     mesh.setMatrixAt(i, variantInstances[i].matrix)
                 }
-
                 mesh.castShadow = true
                 mesh.receiveShadow = true
                 mesh.instanceMatrix.needsUpdate = true
                 scene.add(mesh)
+                meshes.push(mesh)
             }
         }
+        return meshes
     }
 
-    clear() {
-        for (const key in this.instances) {
-            this.instances[key] = []
-        }
+    clearChunk(chunkKey) {
+        this.instances.delete(chunkKey)
+    }
+
+    clearAll() {
+        this.instances.clear()
     }
 }
