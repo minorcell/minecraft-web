@@ -26,6 +26,8 @@ export class BlockInteractor {
 
         this.highlight = this.createHighlightMesh()
         this.scene.add(this.highlight)
+        this.crackOverlay = this.createCrackOverlay()
+        this.scene.add(this.crackOverlay)
         this.crosshair = this.createCrosshair()
 
         this.rayDir = new THREE.Vector3()
@@ -58,6 +60,25 @@ export class BlockInteractor {
         const edges = new THREE.EdgesGeometry(geo)
         const mat = new THREE.LineBasicMaterial({ color: 0xffff00 })
         const mesh = new THREE.LineSegments(edges, mat)
+        mesh.visible = false
+        return mesh
+    }
+
+    /**
+     * 创建裂纹覆盖层
+     */
+    createCrackOverlay() {
+        const geo = new THREE.BoxGeometry(1.01, 1.01, 1.01)
+        const texture = this.world.textureFactory.createTexture('crack', 0)
+        texture.transparent = true
+        const mat = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            side: THREE.DoubleSide
+        })
+        const mesh = new THREE.Mesh(geo, mat)
         mesh.visible = false
         return mesh
     }
@@ -281,7 +302,7 @@ export class BlockInteractor {
     }
 
     /**
-     * 破坏进度UI
+     * 破坏进度UI - 我的世界风格
      */
     createProgressUI() {
         const ui = document.createElement('div')
@@ -289,14 +310,14 @@ export class BlockInteractor {
         ui.style.left = '50%'
         ui.style.top = '50%'
         ui.style.transform = 'translate(-50%, -50%)'
-        ui.style.width = '48px'
-        ui.style.height = '48px'
+        ui.style.width = '40px'
+        ui.style.height = '40px'
         ui.style.borderRadius = '50%'
-        ui.style.border = '2px solid rgba(255,255,255,0.3)'
-        ui.style.background = 'conic-gradient(#ffd200 0deg, rgba(255,255,255,0.05) 0deg)'
+        ui.style.border = '2px solid rgba(0,0,0,0.6)'
+        ui.style.background = 'conic-gradient(#ffa500 0deg, rgba(0,0,0,0.2) 0deg)'
         ui.style.display = 'none'
         ui.style.pointerEvents = 'none'
-        ui.style.boxShadow = '0 0 10px rgba(0,0,0,0.4)'
+        ui.style.boxShadow = '0 0 0 1px rgba(255,255,255,0.1), inset 0 0 10px rgba(0,0,0,0.4)'
         ui.style.zIndex = '1600'
         document.body.appendChild(ui)
         return ui
@@ -309,7 +330,7 @@ export class BlockInteractor {
         }
         this.progressUI.style.display = 'block'
         const deg = Math.min(360, progress * 360)
-        this.progressUI.style.background = `conic-gradient(#ffd200 ${deg}deg, rgba(255,255,255,0.05) ${deg}deg)`
+        this.progressUI.style.background = `conic-gradient(#ffa500 ${deg}deg, rgba(0,0,0,0.2) ${deg}deg)`
     }
 
     getBlockHardness(type) {
@@ -584,6 +605,7 @@ export class BlockInteractor {
             } else {
                 const progress = (now - this.breakStart) / this.breakDuration
                 this.updateProgressUI(progress)
+                this.updateCrackOverlay(progress)
                 if (progress >= 1) {
                     this.breakBlockInstant(this.currentTarget)
                     this.stopBreaking()
@@ -591,9 +613,29 @@ export class BlockInteractor {
             }
         } else {
             this.updateProgressUI(0)
+            this.hideCrackOverlay()
         }
 
         this.updateDrops()
+    }
+
+    /**
+     * 更新裂纹覆盖层的位置和不透明度
+     */
+    updateCrackOverlay(progress) {
+        if (!this.currentTarget) {
+            this.hideCrackOverlay()
+            return
+        }
+        const { x, y, z } = this.currentTarget
+        this.crackOverlay.position.set(x, y, z)
+        this.crackOverlay.visible = true
+        // 根据进度调整裂纹可见度
+        this.crackOverlay.material.opacity = Math.min(0.8, progress * 0.9)
+    }
+
+    hideCrackOverlay() {
+        this.crackOverlay.visible = false
     }
 
     /**

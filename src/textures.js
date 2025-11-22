@@ -226,6 +226,43 @@ export class TextureFactory {
                     }
                 }
                 break
+
+            case 'crack':
+                // 裂纹纹理，透明背景用于覆盖
+                ctx.clearRect(0, 0, 64, 64)
+                // 深色裂纹线
+                ctx.strokeStyle = '#333333'
+                ctx.lineWidth = 3
+                ctx.globalAlpha = 0.9
+                const rand9 = this.seededRandom(seed)
+                ctx.beginPath()
+                // 主裂纹
+                let x = rand9() * 30 + 17
+                let y = rand9() * 30 + 17
+                ctx.moveTo(x, y)
+                const segments = 8
+                for (let s = 0; s < segments; s++) {
+                    x += (rand9() - 0.5) * 20
+                    y += (rand9() - 0.5) * 20
+                    x = Math.max(5, Math.min(59, x))
+                    y = Math.max(5, Math.min(59, y))
+                    ctx.lineTo(x, y)
+                }
+                ctx.stroke()
+                // 次要裂纹分支
+                ctx.strokeStyle = '#444444'
+                ctx.lineWidth = 2
+                ctx.globalAlpha = 0.7
+                for (let c = 0; c < 3; c++) {
+                    const branchX = rand9() * 40 + 12
+                    const branchY = rand9() * 40 + 12
+                    ctx.beginPath()
+                    ctx.moveTo(branchX, branchY)
+                    ctx.lineTo(branchX + (rand9() - 0.5) * 15, branchY + (rand9() - 0.5) * 15)
+                    ctx.stroke()
+                }
+                ctx.globalAlpha = 1.0
+                break
         }
 
         const texture = new THREE.CanvasTexture(canvas)
