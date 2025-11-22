@@ -450,16 +450,34 @@ export class BlockInteractor {
         // 水方块不允许直接挖掉
         if (type === 'water') return
 
-        this.world.voxelBuilder.removeBlock(x, y, z)
+        // 收集要清除的方块位置（仙人掌需整株摧毁）
+        const positions = [{ x, y, z }]
+        if (type === 'cactus') {
+            // 向上收集连续仙人掌
+            let offset = 1
+            while (this.registry.get(x, y + offset, z) === 'cactus') {
+                positions.push({ x, y: y + offset, z })
+                offset++
+            }
+            // 向下收集连续仙人掌（防止中间破坏）
+            offset = -1
+            while (this.registry.get(x, y + offset, z) === 'cactus') {
+                positions.push({ x, y: y + offset, z })
+                offset--
+            }
+        }
 
         // 生成掉落实体
         const drops = this.blockDefs.getDrops(type)
-        drops.forEach(drop => {
-            const count = drop.count || 1
-            for (let i = 0; i < count; i++) {
-                this.spawnDrop(drop.id, x + 0.2 * (Math.random() - 0.5), y + 0.6, z + 0.2 * (Math.random() - 0.5))
-            }
-        })
+        for (const pos of positions) {
+            this.world.voxelBuilder.removeBlock(pos.x, pos.y, pos.z)
+            drops.forEach(drop => {
+                const count = drop.count || 1
+                for (let i = 0; i < count; i++) {
+                    this.spawnDrop(drop.id, pos.x + 0.2 * (Math.random() - 0.5), pos.y + 0.6, pos.z + 0.2 * (Math.random() - 0.5))
+                }
+            })
+        }
 
         // 简单水流：仅在水位以下或相邻侧面有水且下方有支撑时填充
         const neighbors = [
