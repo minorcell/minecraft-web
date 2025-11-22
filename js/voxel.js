@@ -143,8 +143,10 @@ export class VoxelBuilder {
             if (!mats) continue
 
             for (const [variant, variantInstances] of Object.entries(groups)) {
-                const matEntry = mats[variant % mats.length]
-                const mesh = new THREE.InstancedMesh(this.geometry, matEntry, variantInstances.length)
+                const baseMat = mats[variant % mats.length]
+                const material = Array.isArray(baseMat) ? baseMat.map(m => m.clone()) : baseMat.clone()
+                const geo = this.geometry.clone()
+                const mesh = new THREE.InstancedMesh(geo, material, variantInstances.length)
                 for (let i = 0; i < variantInstances.length; i++) {
                     mesh.setMatrixAt(i, variantInstances[i].matrix)
                 }

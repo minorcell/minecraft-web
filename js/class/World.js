@@ -445,6 +445,15 @@ export class World {
         if (this.chunkMeshes.has(chunkKey)) {
             for (const mesh of this.chunkMeshes.get(chunkKey)) {
                 this.scene.remove(mesh)
+                if (mesh.geometry && mesh.geometry.dispose) {
+                    mesh.geometry.dispose()
+                }
+                const material = mesh.material
+                if (Array.isArray(material)) {
+                    material.forEach(mat => mat?.dispose?.())
+                } else if (material?.dispose) {
+                    material.dispose()
+                }
             }
         }
         const meshes = this.voxelBuilder.render(this.scene, chunkKey)
