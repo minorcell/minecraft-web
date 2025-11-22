@@ -27,8 +27,8 @@ export class PlayerController {
         this.isOnGround = false
         this.isThirdPerson = false
         this.speed = 5.2
-        this.jumpStrength = 6.5 // 跳跃力度略减，时间更短
-        this.gravity = 22 // 增大重力让跳跃更快落地
+        this.jumpStrength = 8.4 // 类似我的世界的跳跃高度（1.25格）
+        this.gravity = 19.6 // 类似我的世界的重力
         this.waterDrag = 0.4
         this.waterBuoyancy = 6
         this.playerHeight = 2.0 // 玩家高度两格
