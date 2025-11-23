@@ -494,11 +494,22 @@ export class VoxelBuilder {
     }
 
     clearChunk(chunkKey) {
+        const chunkData = this.instances.get(chunkKey)
+        if (chunkData && this.registry) {
+            for (const type of Object.keys(chunkData)) {
+                for (const inst of chunkData[type]) {
+                    this.registry.remove(inst.x, inst.y, inst.z)
+                }
+            }
+        }
         this.instances.delete(chunkKey)
         this.layeredInstances.delete(chunkKey)
     }
 
     clearAll() {
+        if (this.registry) {
+            this.registry.clear?.()
+        }
         this.instances.clear()
         this.layeredInstances.clear()
     }

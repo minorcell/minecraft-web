@@ -84,6 +84,8 @@ export class World {
 
     applyChunkData(payload) {
         const { chunkKey } = payload
+        // 清理旧数据，避免重复叠加
+        this.voxelBuilder.clearChunk(chunkKey)
         if (payload.blocks) {
             for (const block of payload.blocks) {
                 this.voxelBuilder.addBlock(block.type, block.x, block.y, block.z, null, chunkKey)
@@ -417,6 +419,7 @@ export class World {
      */
     unloadChunk(chunkKey) {
         this.renderCoordinator.unloadChunk(chunkKey)
+        this.voxelBuilder.clearChunk(chunkKey)
     }
 
     /**

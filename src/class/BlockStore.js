@@ -31,4 +31,8 @@ export class BlockStore {
     has(x, y, z) {
         return this.map.has(this.key(x, y, z))
     }
+
+    clear() {
+        this.map.clear()
+    }
 }
