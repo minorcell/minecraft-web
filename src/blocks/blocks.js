@@ -105,6 +105,15 @@ export const blocks = [
     textures: { all: 'glass' }
   },
   {
+    id: 'copper_roof',
+    name: '铜色屋顶瓦',
+    hardness: 1.2,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'copper_roof', count: 1 }],
+    textures: { all: 'copper_roof' }
+  },
+  {
     id: 'roof',
     name: '屋顶瓦',
     hardness: 1.2,

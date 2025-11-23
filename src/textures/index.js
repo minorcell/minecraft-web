@@ -16,6 +16,7 @@ import { generateCactus } from './generators/cactus.js'
 import { generateFlower } from './generators/flower.js'
 import { generateGlass } from './generators/glass.js'
 import { generateRoof } from './generators/roof.js'
+import { generateCopperRoof } from './generators/copper_roof.js'
 import { generateCrack } from './generators/crack.js'
 import { generateTorch } from './generators/torch.js'
 import { generateFlame } from './generators/flame.js'
@@ -45,6 +46,7 @@ const generators = {
     flower: generateFlower,
     glass: generateGlass,
     roof: generateRoof,
+    copper_roof: generateCopperRoof,
     crack: generateCrack,
     torch: generateTorch,
     flame: generateFlame,

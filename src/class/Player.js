@@ -94,11 +94,68 @@ export class PlayerController {
      * @param {number} radius
      */
     spawnAtVillage(world, radius = 16) {
-        const v = world.getNearestVillage({ x: 0, z: 0 })
-        if (v && this.findSafeSpawn({ x: v.x, z: v.z }, radius)) {
-            return true
+        const village = world.getNearestVillageObject({ x: 0, z: 0 })
+        if (village) {
+            // 先尝试村庄内的房屋内部出生
+            if (this.spawnInsideBuilding(village, ['house'])) {
+                return true
+            }
+            const pos = { x: village.x, z: village.z }
+            if (this.findSafeSpawn(pos, radius)) return true
         }
         return this.findSafeSpawn({ x: 0, z: 0 }, radius)
+    }
+
+    /**
+     * 尝试在指定村庄的建筑内部选择安全出生点
+     * @param {import('./Village.js').Village} village
+     * @param {string[]} preferredTypes
+     */
+    spawnInsideBuilding(village, preferredTypes = []) {
+        const buildings = village?.buildings || []
+        const sorted = [
+            ...preferredTypes.flatMap(type => buildings.filter(b => b.type === type)),
+            ...buildings.filter(b => !preferredTypes.includes(b.type))
+        ]
+
+        for (const b of sorted) {
+            const halfW = Math.floor(b.width / 2)
+            const halfD = Math.floor(b.depth / 2)
+            const minX = b.x - halfW + 1
+            const maxX = b.x + halfW - 1
+            const minZ = b.z - halfD + 1
+            const maxZ = b.z + halfD - 1
+            const floorY = b.y + 1 // 玩家脚落在地板上一格
+
+            // 从中心向外尝试，优先靠内侧，避开墙体
+            const candidates = []
+            const centerX = b.x + 0.5
+            const centerZ = b.z + 0.5
+            candidates.push({ x: centerX, z: centerZ })
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    if (dx === 0 && dz === 0) continue
+                    const cx = b.x + dx
+                    const cz = b.z + dz
+                    if (cx >= minX && cx <= maxX && cz >= minZ && cz <= maxZ) {
+                        candidates.push({ x: cx + 0.5, z: cz + 0.5 })
+                    }
+                }
+            }
+
+            for (const c of candidates) {
+                // 确保脚下是实心方块，避免落空
+                const under = this.world.registry.getEntry(Math.floor(c.x), Math.floor(floorY - 1), Math.floor(c.z))
+                if (!under || !this.blockDefs.isSolid(under.type)) continue
+
+                if (!this.isPositionColliding(c.x, floorY, c.z)) {
+                    this.position.set(c.x, floorY, c.z)
+                    this.velocity.set(0, 0, 0)
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     resolveEmbedding() {

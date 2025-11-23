@@ -22,14 +22,17 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap
 document.body.appendChild(renderer.domElement)
 
 // ====== 光照 ======
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+// 降低环境光，避免阳光“穿透”被封闭的空间
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.25)
 scene.add(ambientLight)
 
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8)
+// 主光源加强，依赖阴影而非环境光照亮世界
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.0)
 dirLight.position.set(100, 100, 50)
 dirLight.castShadow = true
 dirLight.shadow.mapSize.width = 4096
 dirLight.shadow.mapSize.height = 4096
+dirLight.shadow.bias = -0.0008 // 减少高亮漏光
 dirLight.shadow.camera.near = 0.5
 dirLight.shadow.camera.far = 500
 dirLight.shadow.camera.left = -250
@@ -45,7 +48,7 @@ const world = new World({
         worldSize: 256,
         villageCount: 5,
         treeCount: 520,
-        grassCount: 2000
+        grassCount: 900 // 减少草/花的总量
     },
     viewDistance: 6
 })
@@ -62,6 +65,7 @@ const inventory = new Inventory(27, [
     // 常用建材/工具放在前排，便于快捷栏
     { type: 'stone', count: 128 },
     { type: 'wood', count: 128 },
+    { type: 'copper_roof', count: 128 },
     { type: 'slab_wood', count: 128 },
     { type: 'stair_wood', count: 128 },
     { type: 'torch', count: 128 },

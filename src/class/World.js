@@ -43,7 +43,7 @@ export class World {
             bottomLevel: -10,
             waterLevel: -3,
             sandLevel: -3,
-            snowLevel: 14,
+            snowLevel: 18, // 提高雪线
             groundDepth: 10,
             seed: this.seed
         })
@@ -566,6 +566,17 @@ export class World {
      * @returns {{x:number,y:number,z:number}|null}
      */
     getNearestVillage(pos = { x: 0, z: 0 }) {
+        const best = this.getNearestVillageObject(pos)
+        if (!best) return null
+        return { x: best.x, y: best.y, z: best.z }
+    }
+
+    /**
+     * 返回距离最近的村庄对象
+     * @param {{x:number,z:number}} pos
+     * @returns {Village|null}
+     */
+    getNearestVillageObject(pos = { x: 0, z: 0 }) {
         if (!this.villages.length) return null
         let best = null
         let bestDist = Infinity
@@ -578,8 +589,7 @@ export class World {
                 best = v
             }
         }
-        if (!best) return null
-        return { x: best.x, y: best.y, z: best.z }
+        return best
     }
 
     /**

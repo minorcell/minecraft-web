@@ -64,6 +64,7 @@ export class BlockInteractor {
         this.breakTargetKey = null
         this.drops = []
         this.dropGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35)
+        this.dropGeos = {}
         this.dropMats = {}
 
         this.initInput()
@@ -157,6 +158,7 @@ export class BlockInteractor {
         const textures = this.blockDefs.getTextures(type) || {}
         const opts = this.blockDefs.getMaterialOptions(type)
         const meta = this.blockMeta[type] || this.blockMeta.default
+        const shape = this.blockDefs.getShape(type)
 
         const makeMaterial = (texName) => {
             if (!texName) {
@@ -199,6 +201,36 @@ export class BlockInteractor {
             sideMat,
             sideMat
         ]
+    }
+
+    /**
+     * 基于方块形状挑选掉落几何，确保不规则物品非方块外观
+     */
+    getDropGeometry(type) {
+        if (this.dropGeos[type]) return this.dropGeos[type]
+        const shape = this.blockDefs.getShape(type)
+        const vb = this.world.voxelBuilder
+        const cloneScale = (geom, s = 0.5) => {
+            const g = geom.clone()
+            if (g.scale) g.scale(s, s, s)
+            return g
+        }
+
+        let geo = this.dropGeo
+        if (shape === 'slab' && vb?.shapeGeometryCache?.slab) {
+            geo = cloneScale(vb.shapeGeometryCache.slab, 0.6)
+        } else if (shape === 'stair' && vb?.shapeGeometryCache?.stair) {
+            geo = cloneScale(vb.shapeGeometryCache.stair, 0.45)
+        } else if (shape === 'torch' && vb?.shapeGeometryCache?.torch?.stick) {
+            geo = cloneScale(vb.shapeGeometryCache.torch.stick, 0.8)
+        } else if (shape === 'flower' && vb?.shapeGeometryCache?.flower) {
+            geo = cloneScale(vb.shapeGeometryCache.flower, 0.55)
+        } else if (shape === 'cactus' && vb?.shapeGeometryCache?.cactus) {
+            geo = cloneScale(vb.shapeGeometryCache.cactus, 0.45)
+        }
+
+        this.dropGeos[type] = geo
+        return geo
     }
 
     createIcon(style) {
@@ -551,7 +583,8 @@ export class BlockInteractor {
         if (!this.dropMats[type]) {
             this.dropMats[type] = this.createDropMaterial(type)
         }
-        const mesh = new THREE.Mesh(this.dropGeo, this.dropMats[type])
+        const geo = this.getDropGeometry(type)
+        const mesh = new THREE.Mesh(geo, this.dropMats[type])
         mesh.position.set(x, y, z)
         mesh.castShadow = true
         mesh.receiveShadow = true

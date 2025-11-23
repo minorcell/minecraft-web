@@ -46,9 +46,11 @@ export class Building {
      * @param {number} depth
      * @returns {boolean}
      */
-    static isPositionOccupied(x, z, width, depth, occupiedSet) {
-        for (let i = x - Math.floor(width / 2); i <= x + Math.floor(width / 2); i++) {
-            for (let j = z - Math.floor(depth / 2); j <= z + Math.floor(depth / 2); j++) {
+    static isPositionOccupied(x, z, width, depth, occupiedSet, padding = 0) {
+        const halfW = Math.floor(width / 2) + padding
+        const halfD = Math.floor(depth / 2) + padding
+        for (let i = x - halfW; i <= x + halfW; i++) {
+            for (let j = z - halfD; j <= z + halfD; j++) {
                 if (occupiedSet.has(`${i},${j}`)) return true
             }
         }
@@ -63,9 +65,11 @@ export class Building {
      * @param {number} depth
      * @param {Set} occupiedSet
      */
-    static markPositionOccupied(x, z, width, depth, occupiedSet) {
-        for (let i = x - Math.floor(width / 2); i <= x + Math.floor(width / 2); i++) {
-            for (let j = z - Math.floor(depth / 2); j <= z + Math.floor(depth / 2); j++) {
+    static markPositionOccupied(x, z, width, depth, occupiedSet, padding = 0) {
+        const halfW = Math.floor(width / 2) + padding
+        const halfD = Math.floor(depth / 2) + padding
+        for (let i = x - halfW; i <= x + halfW; i++) {
+            for (let j = z - halfD; j <= z + halfD; j++) {
                 occupiedSet.add(`${i},${j}`)
             }
         }
@@ -106,10 +110,14 @@ export class Building {
      */
     buildFoundation(builder) {
         const depth = Math.max(1, this.foundationDepth)
+        const minX = -Math.floor(this.width / 2)
+        const maxX = Math.ceil(this.width / 2) - 1
+        const minZ = -Math.floor(this.depth / 2)
+        const maxZ = Math.ceil(this.depth / 2) - 1
         for (let h = 0; h < depth; h++) {
             const y = this.y - h
-            for (let i = -this.width / 2; i < this.width / 2; i++) {
-                for (let j = -this.depth / 2; j < this.depth / 2; j++) {
+            for (let i = minX; i <= maxX; i++) {
+                for (let j = minZ; j <= maxZ; j++) {
                     builder.addBlock(this.foundationMaterial, this.x + i, y, this.z + j)
                 }
             }
@@ -121,8 +129,12 @@ export class Building {
      * @param {VoxelBuilder} builder
      */
     buildRoof(builder) {
-        for (let i = -this.width / 2 - 1; i <= this.width / 2; i++) {
-            for (let j = -this.depth / 2 - 1; j <= this.depth / 2; j++) {
+        const minX = -Math.floor(this.width / 2) - 1
+        const maxX = Math.ceil(this.width / 2)
+        const minZ = -Math.floor(this.depth / 2) - 1
+        const maxZ = Math.ceil(this.depth / 2)
+        for (let i = minX; i <= maxX; i++) {
+            for (let j = minZ; j <= maxZ; j++) {
                 builder.addBlock(this.roofMaterial, this.x + i, this.y + this.height + 1, this.z + j)
             }
         }
@@ -133,11 +145,15 @@ export class Building {
      * @param {VoxelBuilder} builder
      */
     buildWalls(builder) {
+        const minX = -Math.floor(this.width / 2)
+        const maxX = Math.ceil(this.width / 2) - 1
+        const minZ = -Math.floor(this.depth / 2)
+        const maxZ = Math.ceil(this.depth / 2) - 1
         for (let h = 1; h <= this.height; h++) {
-            for (let i = -this.width / 2; i < this.width / 2; i++) {
-                for (let j = -this.depth / 2; j < this.depth / 2; j++) {
-                    if (i === -this.width / 2 || i === this.width / 2 - 1 ||
-                        j === -this.depth / 2 || j === this.depth / 2 - 1) {
+            for (let i = minX; i <= maxX; i++) {
+                for (let j = minZ; j <= maxZ; j++) {
+                    if (i === minX || i === maxX ||
+                        j === minZ || j === maxZ) {
                         builder.addBlock(this.wallMaterial, this.x + i, this.y + h, this.z + j)
                     }
                 }
@@ -153,12 +169,16 @@ export class Building {
      */
     build(builder, occupiedSet, terrain = null) {
         // 检查位置是否可用
-        if (Building.isPositionOccupied(this.x, this.z, this.width, this.depth, occupiedSet)) {
+        const spacing = 2 // 最少留出2格间距
+        if (Building.isPositionOccupied(this.x, this.z, this.width, this.depth, occupiedSet, spacing)) {
             return false
         }
 
         // 标记位置为已占用
-        Building.markPositionOccupied(this.x, this.z, this.width, this.depth, occupiedSet)
+        Building.markPositionOccupied(this.x, this.z, this.width, this.depth, occupiedSet, spacing)
+
+        // 清理地形占位，确保室内/地基平整
+        this.clearFootprint(builder)
 
         // 构建建筑的各个部分
         this.buildFoundation(builder)
@@ -221,10 +241,10 @@ export class Building {
      * @param {VoxelBuilder} builder
      */
     buildFloor(builder) {
-        const minX = -this.width / 2 + 1
-        const maxX = this.width / 2 - 1
-        const minZ = -this.depth / 2 + 1
-        const maxZ = this.depth / 2 - 1
+        const minX = -Math.floor(this.width / 2) + 1
+        const maxX = Math.ceil(this.width / 2) - 2
+        const minZ = -Math.floor(this.depth / 2) + 1
+        const maxZ = Math.ceil(this.depth / 2) - 2
         if (minX > maxX || minZ > maxZ) return
         for (let i = minX; i <= maxX; i++) {
             for (let j = minZ; j <= maxZ; j++) {
@@ -239,10 +259,11 @@ export class Building {
      */
     getDoorOffsets() {
         if (!this.hasDoor) return []
+        const halfDepth = Math.floor(this.depth / 2)
         return [
             {
                 xOffset: 0,
-                zOffset: Math.floor(this.depth / 2) - 1,
+                zOffset: halfDepth - 1,
                 dirZ: 1
             }
         ]
@@ -271,6 +292,28 @@ export class Building {
                 const stepZ = outsideZ + dirZ * step
                 if (stepY > floorY) break
                 builder.addBlock(this.floorMaterial, doorX, stepY, stepZ)
+            }
+        }
+    }
+
+    /**
+     * 清理建筑占用范围内的方块，避免室内残留地形/水体
+     * @param {VoxelBuilder} builder
+     */
+    clearFootprint(builder) {
+        if (!builder?.removeBlock) return
+        const minX = -Math.floor(this.width / 2)
+        const maxX = Math.ceil(this.width / 2) - 1
+        const minZ = -Math.floor(this.depth / 2)
+        const maxZ = Math.ceil(this.depth / 2) - 1
+        const minY = this.y - Math.max(1, this.foundationDepth) - 1
+        const maxY = this.y + this.height + 6 // 覆盖屋内及屋顶空间
+
+        for (let x = this.x + minX; x <= this.x + maxX; x++) {
+            for (let z = this.z + minZ; z <= this.z + maxZ; z++) {
+                for (let y = minY; y <= maxY; y++) {
+                    builder.removeBlock(x, y, z)
+                }
             }
         }
     }

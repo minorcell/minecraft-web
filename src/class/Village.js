@@ -166,10 +166,7 @@ export class Village {
         square.build(builder, terrain)
         this.decorations.push(square)
 
-        // 生成井
-        const well = new Decoration.Well(this.x, this.z)
-        well.build(builder, terrain)
-        this.decorations.push(well)
+        // 井移除：保留中央广场但不再生成含水井
     }
 
     /**
@@ -270,18 +267,20 @@ export class Village {
      */
     getBiomeMaterials(buildingType) {
         if (this.biome === 'desert' || this.biome === 'beach') {
-            return {
-                wallMaterial: 'sand',
-                foundationMaterial: 'stone',
-                roofMaterial: 'roof'
-            }
+            return buildingType === 'house'
+                ? {} // 民居保持默认木墙石柱
+                : {
+                    wallMaterial: 'sand',
+                    foundationMaterial: 'stone',
+                    roofMaterial: 'roof'
+                }
         }
 
         if (this.biome === 'snow' || this.biome === 'taiga') {
             return {
                 wallMaterial: 'wood',
                 foundationMaterial: 'stone',
-                roofMaterial: 'roof'
+                roofMaterial: buildingType === 'house' ? undefined : 'roof'
             }
         }
 

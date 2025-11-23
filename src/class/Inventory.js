@@ -140,6 +140,24 @@ export class BlockPreviewRenderer {
         if (!blockId) return null
         if (this.cache.has(blockId)) return this.cache.get(blockId)
         const textures = this.blockDefs.getTextures(blockId) || {}
+        const shape = this.blockDefs.getShape(blockId)
+        // 非立方体：直接使用主要纹理贴图缩放作为预览，避免误导
+        if (shape !== 'cube') {
+            const texName = textures.all || textures.side || textures.top || textures.bottom || null
+            const texCanvas = this.getTextureCanvas(texName)
+            if (texCanvas) {
+                const canvas = document.createElement('canvas')
+                canvas.width = this.size
+                canvas.height = this.size
+                const ctx = canvas.getContext('2d')
+                ctx.imageSmoothingEnabled = false
+                ctx.drawImage(texCanvas, 0, 0, 64, 64, 8, 8, this.size - 16, this.size - 16)
+                const url = canvas.toDataURL('image/png')
+                this.cache.set(blockId, url)
+                return url
+            }
+        }
+
         const top = textures.top || textures.all || textures.side || textures.bottom || null
         const side = textures.side || textures.all || textures.top || textures.bottom || top
         if (!top && !side) return null

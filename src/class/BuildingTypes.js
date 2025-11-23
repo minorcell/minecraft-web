@@ -8,9 +8,9 @@ export class TownHall extends Building {
         super({
             ...options,
             type: 'townhall',
-            width: options.width || 10,
-            depth: options.depth || 10,
-            height: options.height || 8,
+            width: options.width || 8,
+            depth: options.depth || 8,
+            height: options.height || 7,
             wallMaterial: 'wood',
             foundationMaterial: 'stone',
             roofMaterial: 'roof'
@@ -66,7 +66,7 @@ export class Tower extends Building {
             type: 'tower',
             width: options.width || 6,
             depth: options.depth || 6,
-            height: options.height || 12,
+            height: options.height || 10,
             wallMaterial: 'wood',
             foundationMaterial: 'stone',
             roofMaterial: 'roof'
@@ -132,9 +132,9 @@ export class Blacksmith extends Building {
         super({
             ...options,
             type: 'blacksmith',
-            width: options.width || 8,
-            depth: options.depth || 8,
-            height: options.height || 5,
+            width: options.width || 6,
+            depth: options.depth || 6,
+            height: options.height || 4,
             wallMaterial: 'stone',
             foundationMaterial: 'stone',
             roofMaterial: 'roof'
@@ -187,41 +187,102 @@ export class Blacksmith extends Building {
  */
 export class House extends Building {
     constructor(options = {}) {
+        const rand = options.random
+        const useLarge = rand ? rand.float() > 0.5 : Math.random() > 0.5
+        const dims = useLarge
+            ? { width: 7, depth: 7, height: 5 } // 内部约5x5x5
+            : { width: 5, depth: 5, height: 4 } // 内部约3x3x4
         super({
             ...options,
+            ...dims,
             type: 'house',
-            width: options.width || 6,
-            depth: options.depth || 6,
-            height: options.height || 5,
-            wallMaterial: 'wood',
-            foundationMaterial: 'stone',
-            roofMaterial: 'roof'
+            wallMaterial: options.wallMaterial || 'wood',
+            foundationMaterial: 'wood',
+            roofMaterial: 'copper_roof',
+            floorMaterial: options.floorMaterial || 'wood'
         })
+        this.sizeVariant = useLarge ? 'large' : 'compact'
     }
 
     getDoorOffsets() {
         if (!this.hasDoor) return []
-        const halfD = this.depth / 2
+        const halfD = Math.floor(this.depth / 2)
         return [
-            { xOffset: 0, zOffset: halfD - 1, dirZ: 1 },
-            { xOffset: 0, zOffset: -halfD, dirZ: -1 }
+            { xOffset: 0, zOffset: halfD, dirZ: 1 }
         ]
     }
 
     buildWalls(builder) {
+        const minX = -Math.floor(this.width / 2)
+        const maxX = Math.ceil(this.width / 2) - 1
+        const minZ = -Math.floor(this.depth / 2)
+        const maxZ = Math.ceil(this.depth / 2) - 1
+        const doorJ = maxZ
+        const pillarMaterial = 'stone'
+        const doorFrameMaterial = 'wood'
+
         for (let h = 1; h <= this.height; h++) {
-            for (let i = -this.width / 2; i < this.width / 2; i++) {
-                for (let j = -this.depth / 2; j < this.depth / 2; j++) {
-                    if (i === -this.width / 2 || i === this.width / 2 - 1 ||
-                        j === -this.depth / 2 || j === this.depth / 2 - 1) {
-                        if (h <= 2 && i === 0 && this.hasDoor) {
-                            continue // 门洞留空
-                        } else if (this.hasWindows && h >= 2 && h <= 3 && (i === -2 || i === 2 || j === -2 || j === 2)) {
-                            builder.addBlock('glass', this.x + i, this.y + h, this.z + j) // 窗户
-                        } else {
-                            builder.addBlock(this.wallMaterial, this.x + i, this.y + h, this.z + j)
-                        }
+            for (let i = minX; i <= maxX; i++) {
+                for (let j = minZ; j <= maxZ; j++) {
+                    const onEdge = i === minX || i === maxX || j === minZ || j === maxZ
+                    if (!onEdge) continue
+
+                    const isDoorGap = this.hasDoor && j === doorJ && i === 0 && h <= 2
+                    if (isDoorGap) continue
+
+                    const leftEdge = i === minX
+                    const rightEdge = i === maxX
+                    const frontEdge = j === maxZ
+                    const backEdge = j === minZ
+
+                    const isCorner = (leftEdge || rightEdge) && (frontEdge || backEdge)
+                    const isDoorFrame = this.hasDoor && frontEdge && Math.abs(i) <= 1 && h <= 3
+
+                    const windowSlot =
+                        this.hasWindows &&
+                        h === 3 &&
+                        (
+                            // 正面 3×3 区域中心玻璃（避开门）
+                            (frontEdge && Math.abs(i) === 0 && this.width >= 5) ||
+                            // 侧面简化为一扇：中心 1 格
+                            ((leftEdge || rightEdge) && j === 0 && this.depth >= 5) ||
+                            // 背面：中心 1 格
+                            (backEdge && i === 0 && this.width >= 5)
+                        )
+
+                    if (windowSlot) {
+                        builder.addBlock('glass', this.x + i, this.y + h, this.z + j)
+                    } else if (isCorner) {
+                        builder.addBlock(pillarMaterial, this.x + i, this.y + h, this.z + j)
+                    } else if (isDoorFrame) {
+                        builder.addBlock(doorFrameMaterial, this.x + i, this.y + h, this.z + j)
+                    } else {
+                        builder.addBlock(this.wallMaterial, this.x + i, this.y + h, this.z + j)
                     }
+                }
+            }
+        }
+    }
+
+    buildRoof(builder) {
+        const baseWidth = this.width + 2 // 1格挑檐
+        const baseDepth = this.depth + 2
+        const roofBaseY = this.y + this.height + 1
+        const maxLevels = 5
+
+        for (let level = 0; level < maxLevels; level++) {
+            const sizeX = baseWidth - level * 2
+            const sizeZ = baseDepth - level * 2
+            if (sizeX <= 0 || sizeZ <= 0) break
+
+            const levelY = roofBaseY + level
+            const minX = -Math.floor(sizeX / 2)
+            const maxX = Math.ceil(sizeX / 2) - 1
+            const minZ = -Math.floor(sizeZ / 2)
+            const maxZ = Math.ceil(sizeZ / 2) - 1
+            for (let i = minX; i <= maxX; i++) {
+                for (let j = minZ; j <= maxZ; j++) {
+                    builder.addBlock(this.roofMaterial, this.x + i, levelY, this.z + j)
                 }
             }
         }
@@ -236,9 +297,9 @@ export class Barn extends Building {
         super({
             ...options,
             type: 'barn',
-            width: options.width || 12,
+            width: options.width || 10,
             depth: options.depth || 8,
-            height: options.height || 6,
+            height: options.height || 5,
             wallMaterial: 'wood',
             foundationMaterial: 'wood',
             roofMaterial: 'roof'
@@ -293,9 +354,9 @@ export class Storage extends Building {
         super({
             ...options,
             type: 'storage',
-            width: options.width || 6,
-            depth: options.depth || 6,
-            height: options.height || 4,
+            width: options.width || 4,
+            depth: options.depth || 4,
+            height: options.height || 3,
             wallMaterial: 'wood',
             foundationMaterial: 'wood',
             roofMaterial: 'roof'

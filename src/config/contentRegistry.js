@@ -3,12 +3,8 @@
  */
 export function getBuildingConfig() {
     return [
-        { type: null, name: 'TownHall', count: 1, priority: 1, distanceRange: [0, 0.2] },
-        { type: null, name: 'Tower', count: 1, priority: 2, distanceRange: [0.5, 0.8] },
-        { type: null, name: 'Blacksmith', count: 1, priority: 3, distanceRange: [0.2, 0.5] },
-        { type: null, name: 'House', count: 3, priority: 4, distanceRange: [0.2, 0.5] },
-        { type: null, name: 'Barn', count: 2, priority: 5, distanceRange: [0.4, 0.7] },
-        { type: null, name: 'Storage', count: 2, priority: 6, distanceRange: [0.3, 0.6] }
+        // 仅保留民居，安全删除其他建筑类型
+        { type: null, name: 'House', count: 10, priority: 1, distanceRange: [0.2, 0.8] }
     ]
 }
 
@@ -17,12 +13,7 @@ export function getBuildingConfig() {
  */
 export function wireBuildingTypes(buildingTypes) {
     const map = {
-        TownHall: buildingTypes.TownHall,
-        Tower: buildingTypes.Tower,
-        Blacksmith: buildingTypes.Blacksmith,
-        House: buildingTypes.House,
-        Barn: buildingTypes.Barn,
-        Storage: buildingTypes.Storage
+        House: buildingTypes.House
     }
     return getBuildingConfig().map(cfg => ({
         ...cfg,
