@@ -41,9 +41,9 @@ export class World {
         this.terrain = new Terrain({
             worldSize: this.settings.worldSize,
             bottomLevel: -10,
-            waterLevel: -4,
+            waterLevel: -3,
             sandLevel: -3,
-            snowLevel: 12,
+            snowLevel: 14,
             groundDepth: 10,
             seed: this.seed
         })
@@ -99,6 +99,7 @@ export class World {
         }
         this.chunkManager.markLoaded(chunkKey)
         this.renderChunk(chunkKey)
+        this.rerenderAdjacentChunks(chunkKey)
         this.events.emit('chunk:loaded', chunkKey)
     }
 
@@ -119,6 +120,7 @@ export class World {
         for (const chunkKey of affectedChunks) {
             if (this.chunkManager.loaded.has(chunkKey)) {
                 this.renderChunk(chunkKey)
+                this.rerenderAdjacentChunks(chunkKey)
             }
         }
         this.events.emit('decorations:generated', { blocks: blocks.length, decorations: payload?.decorations?.length || 0 })
@@ -385,6 +387,28 @@ export class World {
      */
     renderChunk(chunkKey) {
         this.renderCoordinator.renderChunk(chunkKey)
+    }
+
+    /**
+     * 重新渲染相邻chunk以同步跨chunk的暴露面裁剪
+     * @param {string} chunkKey
+     */
+    rerenderAdjacentChunks(chunkKey) {
+        const [cxStr, czStr] = chunkKey.split(',')
+        const cx = parseInt(cxStr, 10)
+        const cz = parseInt(czStr, 10)
+        if (Number.isNaN(cx) || Number.isNaN(cz)) return
+        const neighbors = [
+            `${cx + 1},${cz}`,
+            `${cx - 1},${cz}`,
+            `${cx},${cz + 1}`,
+            `${cx},${cz - 1}`
+        ]
+        for (const key of neighbors) {
+            if (this.chunkManager.loaded.has(key)) {
+                this.renderChunk(key)
+            }
+        }
     }
 
     /**

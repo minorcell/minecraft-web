@@ -12,24 +12,24 @@ export class Terrain {
             worldSize: settings.worldSize || 128,
             bottomLevel: settings.bottomLevel || -10,
             bedrockLevel: settings.bedrockLevel || -12,
-            waterLevel: settings.waterLevel || -5,
+            waterLevel: settings.waterLevel || -4,
             sandLevel: settings.sandLevel || 3,
             snowLevel: settings.snowLevel || 13,
             groundDepth: settings.groundDepth || 10,
-            noiseScale1: settings.noiseScale1 || 0.008,
-            noiseScale2: settings.noiseScale2 || 0.035,
-            noiseAmplitude1: settings.noiseAmplitude1 || 14,
-            noiseAmplitude2: settings.noiseAmplitude2 || 4,
-            noiseScale3: settings.noiseScale3 || 0.12,
-            noiseAmplitude3: settings.noiseAmplitude3 || 2,
-            continentalScale: settings.continentalScale || 0.0015,
-            continentalAmplitude: settings.continentalAmplitude || 14,
-            erosionScale: settings.erosionScale || 0.01,
-            peakScale: settings.peakScale || 0.05,
-            peakAmplitude: settings.peakAmplitude || 5,
-            riverScale: settings.riverScale || 0.012,
-            riverDepth: settings.riverDepth || 8,
-            riverThreshold: settings.riverThreshold || 0.035,
+            noiseScale1: settings.noiseScale1 || 0.006,
+            noiseScale2: settings.noiseScale2 || 0.025,
+            noiseAmplitude1: settings.noiseAmplitude1 || 10,
+            noiseAmplitude2: settings.noiseAmplitude2 || 3.5,
+            noiseScale3: settings.noiseScale3 || 0.08,
+            noiseAmplitude3: settings.noiseAmplitude3 || 1.25,
+            continentalScale: settings.continentalScale || 0.0012,
+            continentalAmplitude: settings.continentalAmplitude || 10,
+            erosionScale: settings.erosionScale || 0.009,
+            peakScale: settings.peakScale || 0.04,
+            peakAmplitude: settings.peakAmplitude || 3,
+            riverScale: settings.riverScale || 0.01,
+            riverDepth: settings.riverDepth || 14,
+            riverThreshold: settings.riverThreshold || 0.06,
             chunkSize: settings.chunkSize || 16,
             // 生物群系噪声参数
             temperatureScale: settings.temperatureScale || 0.005,
@@ -39,6 +39,12 @@ export class Terrain {
 
         // 种子化随机源，确保地形确定性
         this.random = new SeededRandom(this.settings.seed)
+        // 限制地表最低高度，避免河道/噪声切穿基岩层
+        this.minSurfaceLevel = Math.max(this.settings.bottomLevel, this.settings.bedrockLevel + 1)
+        this.maxSurfaceLevel = this.settings.snowLevel + 24
+        this.lowlandCenter = this.settings.waterLevel + 3
+        this.lowlandRange = 14
+        this.lowlandFlattenStrength = 0.4
 
         // 初始化噪声生成器
         this.noise2D = createNoise2D(() => this.random.float())
@@ -82,22 +88,37 @@ export class Terrain {
         // 山峰 ridge，仅在大陆高区
         const peakRaw = this.peakNoise(x * this.settings.peakScale, z * this.settings.peakScale)
         const ridge = Math.pow(1 - Math.abs(peakRaw), 2) * this.settings.peakAmplitude
-        const peakWeight = Math.max(0, Math.min(1, (contRaw - 0.25) / 0.55)) * 0.45
-        const peaks = (ridge - this.settings.peakAmplitude * 0.4) * peakWeight
+        const peakWeight = Math.max(0, Math.min(1, (contRaw - 0.25) / 0.55)) * 0.25
+        const peaks = ridge * peakWeight
         // 河道切削
         const riverVal = Math.abs(this.riverNoise(x * this.settings.riverScale, z * this.settings.riverScale))
         const riverCut = riverVal < this.settings.riverThreshold
-            ? (this.settings.riverThreshold - riverVal) / this.settings.riverThreshold * this.settings.riverDepth
+            ? Math.pow((this.settings.riverThreshold - riverVal) / this.settings.riverThreshold, 1.1) * this.settings.riverDepth
             : 0
 
-        const detail = h2 + h3 + peaks
-        const baseHeight = continentalBase + erosionMul * detail + h1
-        const height = Math.floor(baseHeight - riverCut)
+        const detail = (h2 * 0.6) + (h3 * 0.35) + (peaks * 0.7)
+        const baseHeight = continentalBase + (h1 * 0.65) + erosionMul * detail
+        const rawHeight = baseHeight - riverCut
+        const flattened = this.flattenLowlands(rawHeight)
+        const clamped = Math.max(this.minSurfaceLevel, Math.min(flattened, this.maxSurfaceLevel))
+        const height = Math.floor(clamped)
 
         // 缓存结果
         this.heightCache.set(cacheKey, height)
 
         return height
+    }
+
+    /**
+     * 在低地附近压平地形，增加平原/河谷面积
+     * @param {number} height
+     * @returns {number}
+     */
+    flattenLowlands(height) {
+        const t = 1 - Math.min(1, Math.abs(height - this.lowlandCenter) / this.lowlandRange)
+        if (t <= 0) return height
+        const k = t * this.lowlandFlattenStrength
+        return height * (1 - k) + this.lowlandCenter * k
     }
 
     /**
@@ -324,6 +345,11 @@ export class Terrain {
     updateSettings(newSettings) {
         const seedChanged = newSettings.seed !== undefined && newSettings.seed !== this.settings.seed
         this.settings = { ...this.settings, ...newSettings }
+        this.minSurfaceLevel = Math.max(this.settings.bottomLevel, this.settings.bedrockLevel + 1)
+        this.maxSurfaceLevel = this.settings.snowLevel + 24
+        this.lowlandCenter = this.settings.waterLevel + 3
+        this.lowlandRange = 14
+        this.lowlandFlattenStrength = 0.4
         this.heightCache.clear() // 清空缓存
 
         if (seedChanged) {

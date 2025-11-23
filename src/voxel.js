@@ -32,6 +32,16 @@ export class VoxelBuilder {
             alpha: new Map(),
             water: new Map()
         }
+        this.faceGeometryCache = new Map()
+        this.faceDirections = [
+            [1, 0, 0],   // +X right
+            [-1, 0, 0],  // -X left
+            [0, 1, 0],   // +Y top
+            [0, -1, 0],  // -Y bottom
+            [0, 0, 1],   // +Z front
+            [0, 0, -1]   // -Z back
+        ]
+        this.fullFaceMask = (1 << this.faceDirections.length) - 1
 
         this.dummy = new THREE.Object3D()
         this.sharedGeometry = this.geometry // 共享几何以避免重复克隆
@@ -151,6 +161,57 @@ export class VoxelBuilder {
         }
     }
 
+    normalizeType(type) {
+        if (type === 'water_wavy' || type === 'water_still') return 'water'
+        return type
+    }
+
+    isFaceExposed(type, nx, ny, nz) {
+        if (!this.registry || !this.blockDefs) return true
+        const t = this.registry.get(nx, ny, nz)
+        const baseType = this.normalizeType(type)
+        const sameWater = baseType === 'water' && this.normalizeType(t) === 'water'
+        if (sameWater) return false
+        if (!t) return true
+        const opt = this.blockDefs.getMaterialOptions(this.normalizeType(t))
+        return opt.transparent === true
+    }
+
+    getFaceMask(type, x, y, z) {
+        if (!this.registry || !this.blockDefs) return this.fullFaceMask
+        let mask = 0
+        const baseType = this.normalizeType(type)
+        for (let i = 0; i < this.faceDirections.length; i++) {
+            const [dx, dy, dz] = this.faceDirections[i]
+            if (this.isFaceExposed(baseType, x + dx, y + dy, z + dz)) {
+                mask |= (1 << i)
+            }
+        }
+        return mask
+    }
+
+    getGeometryForMask(mask) {
+        if (mask === 0) return null
+        if (this.faceGeometryCache.has(mask)) return this.faceGeometryCache.get(mask)
+
+        // 默认使用全量几何
+        if (mask === this.fullFaceMask || !this.sharedGeometry?.groups?.length) {
+            this.faceGeometryCache.set(mask, this.sharedGeometry)
+            return this.sharedGeometry
+        }
+
+        const geom = this.sharedGeometry.clone()
+        geom.clearGroups()
+        for (let i = 0; i < this.faceDirections.length; i++) {
+            if (mask & (1 << i)) {
+                const g = this.sharedGeometry.groups[i]
+                if (g) geom.addGroup(g.start, g.count, g.materialIndex)
+            }
+        }
+        this.faceGeometryCache.set(mask, geom)
+        return geom
+    }
+
     render(scene, chunkKey = 'default') {
         const chunkData = this.instances.get(chunkKey)
         if (!chunkData) return []
@@ -163,18 +224,21 @@ export class VoxelBuilder {
                 const filtered = instances.filter(inst => inst.layer === layerName)
                 if (filtered.length === 0) continue
 
-                // Group by variant
+                // Group by variant and face mask
                 const groups = {}
                 for (const inst of filtered) {
                     const v = inst.variant
-                    if (!groups[v]) groups[v] = []
-                    groups[v].push(inst)
+                    const faceMask = this.getFaceMask(type, inst.x, inst.y, inst.z)
+                    if (faceMask === 0) continue
+                    if (!groups[v]) groups[v] = {}
+                    if (!groups[v][faceMask]) groups[v][faceMask] = []
+                    groups[v][faceMask].push(inst)
                 }
 
                 const mats = this.materialsCache.get(type)
                 if (!mats) continue
 
-                for (const [variant, variantInstances] of Object.entries(groups)) {
+                for (const [variant, maskGroups] of Object.entries(groups)) {
                     const material = mats[variant % mats.length]
                     if (flags) {
                         if (Array.isArray(material)) {
@@ -191,16 +255,21 @@ export class VoxelBuilder {
                             material.depthTest = flags.depthTest ?? material.depthTest
                         }
                     }
-                    const mesh = new THREE.InstancedMesh(this.sharedGeometry, material, variantInstances.length)
-                    for (let i = 0; i < variantInstances.length; i++) {
-                        mesh.setMatrixAt(i, variantInstances[i].matrix)
+                    for (const [maskStr, variantInstances] of Object.entries(maskGroups)) {
+                        const faceMask = Number(maskStr)
+                        const geometry = this.getGeometryForMask(faceMask)
+                        if (!geometry) continue
+                        const mesh = new THREE.InstancedMesh(geometry, material, variantInstances.length)
+                        for (let i = 0; i < variantInstances.length; i++) {
+                            mesh.setMatrixAt(i, variantInstances[i].matrix)
+                        }
+                        mesh.castShadow = layerName === 'solid'
+                        mesh.receiveShadow = layerName !== 'water'
+                        mesh.instanceMatrix.needsUpdate = true
+                        scene.add(mesh)
+                        meshes.push(mesh)
+                        layers[layerName].push(mesh)
                     }
-                    mesh.castShadow = layerName === 'solid'
-                    mesh.receiveShadow = layerName !== 'water'
-                    mesh.instanceMatrix.needsUpdate = true
-                    scene.add(mesh)
-                    meshes.push(mesh)
-                    layers[layerName].push(mesh)
                 }
             }
             return meshes
@@ -235,10 +304,12 @@ export class VoxelBuilder {
             type === 'water_wavy' ? 'water' :
             type === 'water_still' ? 'water' : type
         )
+        const isWaterMaterial = type === 'water_wavy' || type === 'water_still' || type === 'water'
         const mat = (tex) => new THREE.MeshLambertMaterial({
             map: tex,
             transparent: opts.transparent,
-            opacity: opts.opacity
+            opacity: opts.opacity,
+            side: isWaterMaterial ? THREE.DoubleSide : THREE.FrontSide
         })
 
         let variants = []
