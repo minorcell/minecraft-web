@@ -5,12 +5,24 @@ import { SeededRandom } from './class/Random.js'
 
 export class VoxelBuilder {
     constructor(options = {}) {
-        const { geometry = null, seed = Date.now(), registry = null, chunkSize = 16, blockDefs = null } = options
+        const {
+            geometry = null,
+            seed = Date.now(),
+            registry = null,
+            chunkSize = 16,
+            blockDefs = null,
+            shadowOptions = {}
+        } = options
         // 使用传入的几何体或默认立方体
         this.geometry = geometry || new THREE.BoxGeometry(1, 1, 1)
         this.factory = new TextureFactory()
         this.variants = 4
         this.variantSeed = SeededRandom.hash(seed)
+        const shadowCfg = shadowOptions || {}
+        this.shadowOptions = {
+            cast: shadowCfg.cast !== false,
+            receive: shadowCfg.receive !== false
+        }
 
         // Helper to create material
         const mat = (map, transparent = false, opacity = 1.0) => {
@@ -53,6 +65,14 @@ export class VoxelBuilder {
 
         this.dummy = new THREE.Object3D()
         this.sharedGeometry = this.geometry // 共享几何以避免重复克隆
+    }
+
+    setShadowOptions(options = {}) {
+        const shadowCfg = options || {}
+        this.shadowOptions = {
+            cast: shadowCfg.cast !== false,
+            receive: shadowCfg.receive !== false
+        }
     }
 
     createSlabGeometry() {
@@ -410,9 +430,10 @@ export class VoxelBuilder {
                         for (let i = 0; i < stickInstances.length; i++) {
                             mesh.setMatrixAt(i, stickInstances[i].matrix)
                         }
-                        mesh.castShadow = layerName === 'solid'
-                        mesh.receiveShadow = layerName !== 'water'
+                        mesh.castShadow = this.shadowOptions.cast && layerName === 'solid'
+                        mesh.receiveShadow = this.shadowOptions.receive && layerName !== 'water'
                         mesh.instanceMatrix.needsUpdate = true
+                        mesh.userData.renderLayer = layerName
                         scene.add(mesh)
                         meshes.push(mesh)
                         layers[layerName].push(mesh)
@@ -427,6 +448,7 @@ export class VoxelBuilder {
                         mesh.castShadow = false
                         mesh.receiveShadow = false
                         mesh.instanceMatrix.needsUpdate = true
+                        mesh.userData.renderLayer = layerName
                         scene.add(mesh)
                         meshes.push(mesh)
                         layers[layerName].push(mesh)
@@ -474,9 +496,10 @@ export class VoxelBuilder {
                         for (let i = 0; i < variantInstances.length; i++) {
                             mesh.setMatrixAt(i, variantInstances[i].matrix)
                         }
-                        mesh.castShadow = layerName === 'solid'
-                        mesh.receiveShadow = layerName !== 'water'
+                        mesh.castShadow = this.shadowOptions.cast && layerName === 'solid'
+                        mesh.receiveShadow = this.shadowOptions.receive && layerName !== 'water'
                         mesh.instanceMatrix.needsUpdate = true
+                        mesh.userData.renderLayer = layerName
                         scene.add(mesh)
                         meshes.push(mesh)
                         layers[layerName].push(mesh)

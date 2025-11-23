@@ -31,6 +31,24 @@ export class RenderCoordinator {
     }
 
     /**
+     * 更新已存在 chunk mesh 的阴影标记
+     * @param {object} options
+     * @param {boolean} options.cast
+     * @param {boolean} options.receive
+     */
+    updateShadowFlags(options = {}) {
+        const cast = options.cast !== false
+        const receive = options.receive !== false
+        for (const meshes of this.chunkMeshes.values()) {
+            for (const mesh of meshes) {
+                const layer = mesh.userData?.renderLayer || 'solid'
+                mesh.castShadow = cast && layer === 'solid'
+                mesh.receiveShadow = receive && layer !== 'water'
+            }
+        }
+    }
+
+    /**
      * 卸载所有 chunk
      */
     clear() {

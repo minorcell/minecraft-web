@@ -150,6 +150,7 @@ export class WeatherSystem {
                 baseOpacity: 0.85
             })
         }
+        this.enabled = true
 
         this.timeCache = {
             sky: new THREE.Color(),
@@ -163,6 +164,29 @@ export class WeatherSystem {
         this.tempVec = new THREE.Vector3()
         this.label = this.createLabel()
         this.createCelestialBodies()
+    }
+
+    setPrecipitationVisibility(visible) {
+        Object.values(this.precipitations || {}).forEach(p => {
+            if (!p) return
+            p.points.visible = visible && p.targetStrength > 0
+            p.material.opacity = visible ? p.material.opacity : 0
+        })
+    }
+
+    setEnabled(enabled) {
+        this.enabled = !!enabled
+        if (!this.enabled) {
+            this.currentState = 'clear'
+            this.previousState = 'clear'
+            this.stateTimer = 0
+            this.stateDuration = this.randomDurationFor('clear')
+            this.setPrecipitationVisibility(false)
+            if (this.label) {
+                this.label.textContent = `时间 ${this.formatTime()} | 天气：关闭`
+                this.label.style.opacity = '0.7'
+            }
+        }
     }
 
     computeShadowSnap() {
@@ -571,6 +595,19 @@ export class WeatherSystem {
     }
 
     update(dt, playerPosition) {
+        if (!this.enabled) {
+            this.advanceTime(dt)
+            const timeSettings = this.computeTimeSettings()
+            const lightInfo = this.applySkyAndLight('clear', 'clear', 1, timeSettings)
+            this.setPrecipitationVisibility(false)
+            this.updateCelestialBodies(timeSettings, lightInfo, playerPosition)
+            if (this.label) {
+                this.label.textContent = `时间 ${this.formatTime()} | 天气：关闭`
+                this.label.style.opacity = '0.7'
+            }
+            return
+        }
+
         this.advanceTime(dt)
         const biome = this.getBiomeName(playerPosition || this.tempVec.set(0, 0, 0))
         this.stateTimer += dt
