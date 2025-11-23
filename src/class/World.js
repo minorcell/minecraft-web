@@ -417,7 +417,6 @@ export class World {
      */
     unloadChunk(chunkKey) {
         this.renderCoordinator.unloadChunk(chunkKey)
-        this.voxelBuilder.clearChunk(chunkKey)
     }
 
     /**
