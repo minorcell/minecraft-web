@@ -26,6 +26,8 @@ export class Building {
         this.wallMaterial = options.wallMaterial || 'wood'
         this.roofMaterial = options.roofMaterial || 'roof'
         this.foundationMaterial = options.foundationMaterial || 'stone'
+        this.foundationDepth = options.foundationDepth || 2
+        this.floorMaterial = options.floorMaterial || 'wood'
 
         // 建筑状态
         this.isBuilt = false
@@ -103,9 +105,13 @@ export class Building {
      * @param {VoxelBuilder} builder
      */
     buildFoundation(builder) {
-        for (let i = -this.width / 2; i < this.width / 2; i++) {
-            for (let j = -this.depth / 2; j < this.depth / 2; j++) {
-                builder.addBlock(this.foundationMaterial, this.x + i, this.y, this.z + j)
+        const depth = Math.max(1, this.foundationDepth)
+        for (let h = 0; h < depth; h++) {
+            const y = this.y - h
+            for (let i = -this.width / 2; i < this.width / 2; i++) {
+                for (let j = -this.depth / 2; j < this.depth / 2; j++) {
+                    builder.addBlock(this.foundationMaterial, this.x + i, y, this.z + j)
+                }
             }
         }
     }
@@ -145,7 +151,7 @@ export class Building {
      * @param {Set} occupiedSet
      * @returns {boolean} 是否成功建造
      */
-    build(builder, occupiedSet) {
+    build(builder, occupiedSet, terrain = null) {
         // 检查位置是否可用
         if (Building.isPositionOccupied(this.x, this.z, this.width, this.depth, occupiedSet)) {
             return false
@@ -156,9 +162,11 @@ export class Building {
 
         // 构建建筑的各个部分
         this.buildFoundation(builder)
+        this.buildFloor(builder)
         this.buildWalls(builder)
         this.buildRoof(builder)
         this.buildDetails(builder)
+        this.buildEntranceStairs(builder, terrain)
 
         this.isBuilt = true
         return true
@@ -201,8 +209,69 @@ export class Building {
             wallMaterial: this.wallMaterial,
             roofMaterial: this.roofMaterial,
             foundationMaterial: this.foundationMaterial,
+            foundationDepth: this.foundationDepth,
+            floorMaterial: this.floorMaterial,
             hasWindows: this.hasWindows,
             hasDoor: this.hasDoor
         })
+    }
+
+    /**
+     * 铺设室内地板（默认木地板，覆盖内部，不含墙体边界）
+     * @param {VoxelBuilder} builder
+     */
+    buildFloor(builder) {
+        const minX = -this.width / 2 + 1
+        const maxX = this.width / 2 - 1
+        const minZ = -this.depth / 2 + 1
+        const maxZ = this.depth / 2 - 1
+        if (minX > maxX || minZ > maxZ) return
+        for (let i = minX; i <= maxX; i++) {
+            for (let j = minZ; j <= maxZ; j++) {
+                builder.addBlock(this.floorMaterial, this.x + i, this.y, this.z + j)
+            }
+        }
+    }
+
+    /**
+     * 返回门洞位置（相对偏移），默认正面中心
+     * @returns {Array<{xOffset:number,zOffset:number,dirZ:number}>}
+     */
+    getDoorOffsets() {
+        if (!this.hasDoor) return []
+        return [
+            {
+                xOffset: 0,
+                zOffset: Math.floor(this.depth / 2) - 1,
+                dirZ: 1
+            }
+        ]
+    }
+
+    /**
+     * 为高于周围地面的入口添加简易台阶
+     * @param {VoxelBuilder} builder
+     * @param {import('./Terrain.js').Terrain|null} terrain
+     */
+    buildEntranceStairs(builder, terrain) {
+        if (!terrain || !this.hasDoor) return
+        const floorY = this.y
+        for (const door of this.getDoorOffsets()) {
+            const doorX = this.x + door.xOffset
+            const doorZ = this.z + door.zOffset
+            const dirZ = door.dirZ || 1
+            const outsideZ = doorZ + dirZ
+            const ground = terrain.getHeight(doorX, outsideZ)
+            const delta = floorY - ground
+            if (delta <= 0) continue
+
+            // 从地面开始向上铺台阶（全方块坡道）
+            for (let step = 0; step <= delta; step++) {
+                const stepY = ground + 1 + step
+                const stepZ = outsideZ + dirZ * step
+                if (stepY > floorY) break
+                builder.addBlock(this.floorMaterial, doorX, stepY, stepZ)
+            }
+        }
     }
 }

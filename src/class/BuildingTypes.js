@@ -18,15 +18,26 @@ export class TownHall extends Building {
     }
 
     buildWalls(builder) {
-        // 主建筑 - 木墙配石头地基
+        const halfW = this.width / 2
+        const halfD = this.depth / 2
+        const doorJ = halfD - 1
         for (let h = 1; h <= this.height; h++) {
-            for (let i = -this.width / 2 + 1; i < this.width / 2 - 1; i++) {
-                for (let j = -this.depth / 2 + 1; j < this.depth / 2 - 1; j++) {
-                    if (h <= 2) {
-                        builder.addBlock('stone', this.x + i, this.y + h, this.z + j)
-                    } else {
-                        builder.addBlock('wood', this.x + i, this.y + h, this.z + j)
+            for (let i = -halfW; i < halfW; i++) {
+                for (let j = -halfD; j < halfD; j++) {
+                    const onEdge = i === -halfW || i === halfW - 1 || j === -halfD || j === halfD - 1
+                    if (!onEdge) continue
+
+                    // 中央门洞（正面）
+                    if (this.hasDoor && j === doorJ && i === 0 && h <= 2) continue
+
+                    // 窗户：两层高度，四面中心
+                    if (this.hasWindows && h >= 3 && h <= 4 && (i === 0 || j === 0)) {
+                        builder.addBlock('glass', this.x + i, this.y + h, this.z + j)
+                        continue
                     }
+
+                    const mat = h <= 2 ? 'stone' : 'wood'
+                    builder.addBlock(mat, this.x + i, this.y + h, this.z + j)
                 }
             }
         }
@@ -67,17 +78,28 @@ export class Tower extends Building {
         for (let h = 0; h <= 3; h++) {
             for (let i = -this.width / 2; i < this.width / 2; i++) {
                 for (let j = -this.depth / 2; j < this.depth / 2; j++) {
+                    const doorJ = this.depth / 2 - 1
+                    if (this.hasDoor && j === doorJ && i === 0 && h >= 1) continue
                     builder.addBlock('stone', this.x + i, this.y + h, this.z + j)
                 }
             }
         }
 
         // 上层木结构带窗户
+        const halfW = this.width / 2
+        const halfD = this.depth / 2
+        const doorJ = halfD - 1
         for (let h = 4; h <= this.height; h++) {
-            for (let i = -this.width / 2 + 1; i < this.width / 2 - 1; i++) {
-                for (let j = -this.depth / 2 + 1; j < this.depth / 2 - 1; j++) {
-                    // 窗户
-                    if (h % 2 === 0 && (i === 0 || j === 0)) {
+            for (let i = -halfW; i < halfW; i++) {
+                for (let j = -halfD; j < halfD; j++) {
+                    const onEdge = i === -halfW || i === halfW - 1 || j === -halfD || j === halfD - 1
+                    if (!onEdge) continue
+
+                    // 门洞（保留通路到塔内）
+                    if (this.hasDoor && j === doorJ && i === 0 && h <= 5) continue
+
+                    // 窗户：偶数层四向中心
+                    if (this.hasWindows && h % 2 === 0 && (i === 0 || j === 0)) {
                         builder.addBlock('glass', this.x + i, this.y + h, this.z + j)
                     } else {
                         builder.addBlock('wood', this.x + i, this.y + h, this.z + j)
@@ -120,14 +142,32 @@ export class Blacksmith extends Building {
     }
 
     buildWalls(builder) {
-        for (let h = 0; h <= this.height; h++) {
-            for (let i = -this.width / 2; i < this.width / 2; i++) {
-                for (let j = -this.depth / 2; j < this.depth / 2; j++) {
-                    if (i === -this.width / 2 || i === this.width / 2 - 1 ||
-                        j === -this.depth / 2 || j === this.depth / 2 - 1 || h === 0) {
+        const halfW = this.width / 2
+        const halfD = this.depth / 2
+        const doorJ = halfD - 1
+
+        // 地面石板
+        for (let i = -halfW; i < halfW; i++) {
+            for (let j = -halfD; j < halfD; j++) {
+                builder.addBlock('stone', this.x + i, this.y, this.z + j)
+            }
+        }
+
+        // 墙体
+        for (let h = 1; h <= this.height; h++) {
+            for (let i = -halfW; i < halfW; i++) {
+                for (let j = -halfD; j < halfD; j++) {
+                    const onEdge = i === -halfW || i === halfW - 1 || j === -halfD || j === halfD - 1
+                    if (!onEdge) continue
+
+                    // 门洞
+                    if (this.hasDoor && j === doorJ && i === 0 && h <= 2) continue
+
+                    // 窗户
+                    if (this.hasWindows && h === 3 && (i === 0 || j === 0)) {
+                        builder.addBlock('glass', this.x + i, this.y + h, this.z + j)
+                    } else {
                         builder.addBlock('stone', this.x + i, this.y + h, this.z + j)
-                    } else if (h === 3 && (i === 0 || j === 0)) {
-                        builder.addBlock('glass', this.x + i, this.y + h, this.z + j) // 窗户
                     }
                 }
             }
@@ -159,15 +199,24 @@ export class House extends Building {
         })
     }
 
+    getDoorOffsets() {
+        if (!this.hasDoor) return []
+        const halfD = this.depth / 2
+        return [
+            { xOffset: 0, zOffset: halfD - 1, dirZ: 1 },
+            { xOffset: 0, zOffset: -halfD, dirZ: -1 }
+        ]
+    }
+
     buildWalls(builder) {
         for (let h = 1; h <= this.height; h++) {
             for (let i = -this.width / 2; i < this.width / 2; i++) {
                 for (let j = -this.depth / 2; j < this.depth / 2; j++) {
                     if (i === -this.width / 2 || i === this.width / 2 - 1 ||
                         j === -this.depth / 2 || j === this.depth / 2 - 1) {
-                        if (h === 2 && i === 0) {
-                            builder.addBlock('glass', this.x + i, this.y + h, this.z + j) // 门
-                        } else if (h >= 2 && h <= 3 && (i === -2 || i === 2 || j === -2 || j === 2)) {
+                        if (h <= 2 && i === 0 && this.hasDoor) {
+                            continue // 门洞留空
+                        } else if (this.hasWindows && h >= 2 && h <= 3 && (i === -2 || i === 2 || j === -2 || j === 2)) {
                             builder.addBlock('glass', this.x + i, this.y + h, this.z + j) // 窗户
                         } else {
                             builder.addBlock(this.wallMaterial, this.x + i, this.y + h, this.z + j)
@@ -197,11 +246,32 @@ export class Barn extends Building {
     }
 
     buildWalls(builder) {
-        for (let h = 0; h <= this.height; h++) {
-            for (let i = -this.width / 2; i < this.width / 2; i++) {
-                for (let j = -this.depth / 2; j < this.depth / 2; j++) {
-                    if (i === -this.width / 2 || i === this.width / 2 - 1 ||
-                        j === -this.depth / 2 || j === this.depth / 2 - 1 || h === 0) {
+        const halfW = this.width / 2
+        const halfD = this.depth / 2
+        const doorJ1 = halfD - 1
+        const doorJ2 = halfD - 2
+
+        // 地板
+        for (let i = -halfW; i < halfW; i++) {
+            for (let j = -halfD; j < halfD; j++) {
+                builder.addBlock('wood', this.x + i, this.y, this.z + j)
+            }
+        }
+
+        // 墙体
+        for (let h = 1; h <= this.height; h++) {
+            for (let i = -halfW; i < halfW; i++) {
+                for (let j = -halfD; j < halfD; j++) {
+                    const onEdge = i === -halfW || i === halfW - 1 || j === -halfD || j === halfD - 1
+                    if (!onEdge) continue
+
+                    // 双开门洞
+                    if (this.hasDoor && j >= doorJ2 && j <= doorJ1 && i === 0 && h <= 3) continue
+
+                    // 简易通风窗
+                    if (this.hasWindows && h === 3 && (i === -halfW || i === halfW - 1)) {
+                        builder.addBlock('glass', this.x + i, this.y + h, this.z + j)
+                    } else {
                         builder.addBlock('wood', this.x + i, this.y + h, this.z + j)
                     }
                 }
@@ -210,10 +280,8 @@ export class Barn extends Building {
     }
 
     buildDetails(builder) {
-        // 大门开口
-        for (let h = 1; h <= 3; h++) {
-            builder.addBlock('wood', this.x, this.y + h, this.z + this.depth / 2 - 1)
-        }
+        // 可选：门楣横梁
+        builder.addBlock('wood', this.x, this.y + 4, this.z + this.depth / 2 - 1)
     }
 }
 
@@ -235,12 +303,30 @@ export class Storage extends Building {
     }
 
     buildWalls(builder) {
-        for (let h = 0; h <= this.height; h++) {
-            for (let i = -this.width / 2; i < this.width / 2; i++) {
-                for (let j = -this.depth / 2; j < this.depth / 2; j++) {
-                    if (i === -this.width / 2 || i === this.width / 2 - 1 ||
-                        j === -this.depth / 2 || j === this.depth / 2 - 1 ||
-                        h === 0 || h === this.height) {
+        const halfW = this.width / 2
+        const halfD = this.depth / 2
+        const doorJ = halfD - 1
+
+        // 地板
+        for (let i = -halfW; i < halfW; i++) {
+            for (let j = -halfD; j < halfD; j++) {
+                builder.addBlock('wood', this.x + i, this.y, this.z + j)
+            }
+        }
+
+        for (let h = 1; h <= this.height; h++) {
+            for (let i = -halfW; i < halfW; i++) {
+                for (let j = -halfD; j < halfD; j++) {
+                    const onEdge = i === -halfW || i === halfW - 1 || j === -halfD || j === halfD - 1
+                    if (!onEdge && h !== this.height) continue
+
+                    // 门洞
+                    if (this.hasDoor && j === doorJ && i === 0 && h <= 2) continue
+
+                    // 窗户
+                    if (this.hasWindows && h === 2 && (i === 0 || j === 0)) {
+                        builder.addBlock('glass', this.x + i, this.y + h, this.z + j)
+                    } else {
                         builder.addBlock('wood', this.x + i, this.y + h, this.z + j)
                     }
                 }

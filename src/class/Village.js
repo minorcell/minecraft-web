@@ -80,7 +80,7 @@ export class Village {
                     })
 
                     // 建造建筑
-                    if (building.build(builder, this.occupiedPositions)) {
+                    if (building.build(builder, this.occupiedPositions, terrain)) {
                         this.buildings.push(building)
 
                         // 记录占用位置
