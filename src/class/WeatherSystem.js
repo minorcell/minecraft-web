@@ -474,7 +474,16 @@ export class WeatherSystem {
                     positions[idx + 2] += swayZ[i] * dt * 0.35
                 }
 
-                if (positions[idx + 1] < 0 || Math.abs(positions[idx]) > half || Math.abs(positions[idx + 2]) > half) {
+                // world coords用于检测落地
+                const worldX = anchor.x + positions[idx]
+                const worldZ = anchor.z + positions[idx + 2]
+                const worldY = anchor.y + positions[idx + 1]
+                const groundY = this.terrain ? this.terrain.getHeight(Math.floor(worldX), Math.floor(worldZ)) + 0.5 : -Infinity
+
+                const outOfBounds = Math.abs(positions[idx]) > half || Math.abs(positions[idx + 2]) > half
+                const hitGround = Number.isFinite(groundY) ? worldY <= groundY : positions[idx + 1] < 0
+
+                if (hitGround || outOfBounds) {
                     positions[idx] = this.randBetween(-half, half)
                     positions[idx + 1] = height
                     positions[idx + 2] = this.randBetween(-half, half)

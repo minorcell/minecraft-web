@@ -918,9 +918,9 @@ export class BlockInteractor {
                 : this.camera.getWorldDirection(new THREE.Vector3()).setY(0).normalize()
             let facing = 'north'
             if (Math.abs(dir.x) > Math.abs(dir.z)) {
-                facing = dir.x > 0 ? 'west' : 'east' // 面朝玩家：台阶高端背离玩家
+                facing = dir.x > 0 ? 'east' : 'west'
             } else if (Math.abs(dir.z) > 0) {
-                facing = dir.z > 0 ? 'north' : 'south'
+                facing = dir.z > 0 ? 'south' : 'north'
             }
             return { facing }
         }
