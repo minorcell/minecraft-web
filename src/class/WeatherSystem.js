@@ -151,6 +151,7 @@ export class WeatherSystem {
             })
         }
         this.enabled = true
+        this.currentFps = null
 
         this.timeCache = {
             sky: new THREE.Color(),
@@ -162,7 +163,15 @@ export class WeatherSystem {
         this.lightColorScratch = new THREE.Color()
         this.weatherLightTint = new THREE.Color()
         this.tempVec = new THREE.Vector3()
-        this.label = this.createLabel()
+        this.labelTime = null
+        this.labelWeather = null
+        this.labelFps = null
+        const labelParts = this.createLabel()
+        this.label = labelParts.el
+        this.labelTime = labelParts.time
+        this.labelWeather = labelParts.weather
+        this.labelFps = labelParts.fps
+        this.setLabelText(this.formatTime(), '晴朗')
         this.createCelestialBodies()
     }
 
@@ -183,8 +192,13 @@ export class WeatherSystem {
             this.stateDuration = this.randomDurationFor('clear')
             this.setPrecipitationVisibility(false)
             if (this.label) {
-                this.label.textContent = `时间 ${this.formatTime()} | 天气：关闭`
-                this.label.style.opacity = '0.7'
+                this.setLabelText(this.formatTime(), '关闭')
+                this.label.style.opacity = '0.92'
+            }
+            if (this.scene && this.precipitations) {
+                Object.values(this.precipitations).forEach(p => {
+                    if (p?.points) p.points.visible = false
+                })
             }
         }
     }
@@ -237,9 +251,20 @@ export class WeatherSystem {
     createLabel() {
         const el = document.createElement('div')
         el.id = 'weather-indicator'
-        el.textContent = `时间 ${this.formatTime()} | 天气：晴朗`
+        const time = document.createElement('span')
+        time.className = 'label-time'
+        const weather = document.createElement('span')
+        weather.className = 'label-weather'
+        const fps = document.createElement('span')
+        fps.className = 'label-fps'
+        fps.style.marginLeft = '6px'
+
+        el.appendChild(time)
+        el.appendChild(weather)
+        el.appendChild(fps)
+
         document.body.appendChild(el)
-        return el
+        return { el, time, weather, fps }
     }
 
     randBetween(min, max) {
@@ -578,12 +603,33 @@ export class WeatherSystem {
         return '小雨'
     }
 
+    setLabelText(timeStr, weatherStr) {
+        if (this.labelTime) this.labelTime.textContent = `时间 ${timeStr}`
+        if (this.labelWeather) this.labelWeather.textContent = ` | 天气：${weatherStr}`
+        if (this.labelFps) {
+            const fpsText = this.currentFps !== null && this.currentFps !== undefined
+                ? (typeof this.currentFps === 'number' ? Math.round(this.currentFps) : this.currentFps)
+                : ''
+            this.labelFps.textContent = fpsText ? `| FPS ${fpsText}` : ''
+        }
+    }
+
+    setFps(fpsValue) {
+        this.currentFps = fpsValue
+        if (this.labelFps) {
+            const fpsText = fpsValue !== null && fpsValue !== undefined
+                ? (typeof fpsValue === 'number' ? Math.round(fpsValue) : fpsValue)
+                : ''
+            this.labelFps.textContent = fpsText ? `| FPS ${fpsText}` : ''
+        }
+    }
+
     updateLabel(biome, precip, timeText) {
         if (!this.label) return
         const time = timeText || this.formatTime()
         const text = this.describeWeather(this.currentState, precip.activeType, precip.activeIntensity)
-        this.label.textContent = `时间 ${time} | 天气：${text}`
-        this.label.style.opacity = precip.activeIntensity > 0 ? '0.95' : '0.82'
+        this.setLabelText(time, text)
+        this.label.style.opacity = '0.92'
     }
 
     formatTime() {
@@ -602,8 +648,8 @@ export class WeatherSystem {
             this.setPrecipitationVisibility(false)
             this.updateCelestialBodies(timeSettings, lightInfo, playerPosition)
             if (this.label) {
-                this.label.textContent = `时间 ${this.formatTime()} | 天气：关闭`
-                this.label.style.opacity = '0.7'
+                this.setLabelText(this.formatTime(), '关闭')
+                this.label.style.opacity = '0.92'
             }
             return
         }
