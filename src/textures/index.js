@@ -17,6 +17,11 @@ import { generateFlower } from './generators/flower.js'
 import { generateGlass } from './generators/glass.js'
 import { generateRoof } from './generators/roof.js'
 import { generateCrack } from './generators/crack.js'
+import { generateTorch } from './generators/torch.js'
+import { generateFlame } from './generators/flame.js'
+import { generateFlameTip } from './generators/flame_tip.js'
+import { generateFlowerPetal } from './generators/flower_petal.js'
+import { generateFlowerStem } from './generators/flower_stem.js'
 import { generateDefault } from './generators/default.js'
 
 const generators = {
@@ -41,6 +46,11 @@ const generators = {
     glass: generateGlass,
     roof: generateRoof,
     crack: generateCrack,
+    torch: generateTorch,
+    flame: generateFlame,
+    flame_tip: generateFlameTip,
+    flower_petal: generateFlowerPetal,
+    flower_stem: generateFlowerStem,
     default: generateDefault
 }
 

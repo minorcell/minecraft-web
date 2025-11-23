@@ -42,6 +42,16 @@ export class BlockDefinitions {
         return def ? def.textures || {} : {}
     }
 
+    getShape(id) {
+        const def = this.get(id)
+        return def ? def.shape || 'cube' : 'cube'
+    }
+
+    getDefaultMeta(id) {
+        const def = this.get(id)
+        return def && def.defaultMeta ? { ...def.defaultMeta } : null
+    }
+
     getMaterialOptions(id) {
         const def = this.get(id)
         if (!def) return { transparent: false, opacity: 1.0 }

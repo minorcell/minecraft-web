@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeBufferGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { TextureFactory } from './textures.js'
 import { SeededRandom } from './class/Random.js'
 
@@ -33,6 +34,13 @@ export class VoxelBuilder {
             water: new Map()
         }
         this.faceGeometryCache = new Map()
+        this.shapeGeometryCache = {
+            slab: this.createSlabGeometry(),
+            stair: this.createStairGeometry(),
+            torch: this.createTorchGeometry(),
+            flower: this.createFlowerGeometry(),
+            cactus: this.createCactusGeometry()
+        }
         this.faceDirections = [
             [1, 0, 0],   // +X right
             [-1, 0, 0],  // -X left
@@ -45,6 +53,114 @@ export class VoxelBuilder {
 
         this.dummy = new THREE.Object3D()
         this.sharedGeometry = this.geometry // 共享几何以避免重复克隆
+    }
+
+    createSlabGeometry() {
+        // 半高方块，保持与 BoxGeometry 相同的组设置
+        return new THREE.BoxGeometry(1, 0.5, 1)
+    }
+
+    createStairGeometry() {
+        // 由两段方块组成的阶梯：底层全深，顶层半深
+        const base = new THREE.BoxGeometry(1, 0.5, 1)
+        base.translate(0, -0.25, 0)
+        const top = new THREE.BoxGeometry(1, 0.5, 0.5)
+        // 默认朝向 North（高端在 -Z 侧）
+        top.translate(0, 0.25, -0.25)
+        return mergeBufferGeometries([base, top], true)
+    }
+
+    createTorchGeometry() {
+        // 细杆 + 顶部立体的火焰形状
+
+        // 杆部分：0.15x0.8x0.15
+        const stickGeometry = new THREE.BoxGeometry(0.15, 0.8, 0.15)
+        stickGeometry.translate(0, -0.05, 0)
+
+        // 创建一个更立体的火焰形状：使用多个几何体组合
+        // 底部：较大的椭圆形
+        const baseFlame = new THREE.BoxGeometry(0.3, 0.15, 0.3)
+        baseFlame.translate(0, 0.28, 0)
+
+        // 中间：中等大小的火焰体
+        const midFlame = new THREE.BoxGeometry(0.22, 0.12, 0.22)
+        midFlame.translate(0, 0.42, 0)
+
+        // 顶部：较小的尖端
+        const topFlame = new THREE.BoxGeometry(0.12, 0.08, 0.12)
+        topFlame.translate(0, 0.52, 0)
+
+        // 合并所有火焰部分为单一几何体
+        const flameGeometry = mergeBufferGeometries([baseFlame, midFlame, topFlame], true)
+
+        // 返回包含两个几何体的对象
+        return { stick: stickGeometry, flame: flameGeometry }
+    }
+
+    createFlowerGeometry() {
+        // 细杆（茎） + 花朵顶部，单材质
+        const stem = new THREE.BoxGeometry(0.1, 0.7, 0.1)
+        stem.translate(0, -0.1, 0)
+
+        // 创建花朵 - 使用5个小方块组成花瓣形状
+        const petalSize = 0.25
+        const petalY = 0.35
+        const petalOffset = 0.15
+
+        const petals = []
+
+        // 中央花瓣
+        const centerPetal = new THREE.BoxGeometry(petalSize, petalSize * 0.6, petalSize)
+        centerPetal.translate(0, petalY, 0)
+        petals.push(centerPetal)
+
+        // 上花瓣
+        const topPetal = new THREE.BoxGeometry(petalSize, petalSize * 0.6, petalSize)
+        topPetal.translate(0, petalY, -petalOffset)
+        petals.push(topPetal)
+
+        // 下花瓣
+        const bottomPetal = new THREE.BoxGeometry(petalSize, petalSize * 0.6, petalSize)
+        bottomPetal.translate(0, petalY, petalOffset)
+        petals.push(bottomPetal)
+
+        // 左花瓣
+        const leftPetal = new THREE.BoxGeometry(petalSize, petalSize * 0.6, petalSize)
+        leftPetal.translate(-petalOffset, petalY, 0)
+        petals.push(leftPetal)
+
+        // 右花瓣
+        const rightPetal = new THREE.BoxGeometry(petalSize, petalSize * 0.6, petalSize)
+        rightPetal.translate(petalOffset, petalY, 0)
+        petals.push(rightPetal)
+
+        return mergeBufferGeometries([stem, ...petals], true)
+    }
+
+    createCactusGeometry() {
+        // 主干 - 较高的圆柱形，单材质
+        const trunk = new THREE.BoxGeometry(0.6, 2.5, 0.6)
+        trunk.translate(0, 0.25, 0)
+
+        // 分支 - 左右两侧的小枝条
+        const branches = []
+
+        // 左侧分支
+        const leftBranch = new THREE.BoxGeometry(0.3, 1.0, 0.3)
+        leftBranch.translate(-0.4, 0.5, 0)
+        branches.push(leftBranch)
+
+        // 右侧分支
+        const rightBranch = new THREE.BoxGeometry(0.3, 1.0, 0.3)
+        rightBranch.translate(0.4, 0.5, 0)
+        branches.push(rightBranch)
+
+        // 顶部小分支
+        const topBranch = new THREE.BoxGeometry(0.25, 0.8, 0.25)
+        topBranch.translate(0, 1.8, 0)
+        branches.push(topBranch)
+
+        return mergeBufferGeometries([trunk, ...branches], true)
     }
 
     /**
@@ -74,7 +190,7 @@ export class VoxelBuilder {
         return (h >>> 0) % this.variants
     }
 
-    addBlock(type, x, y, z, variant = null, chunkKey = null) {
+    addBlock(type, x, y, z, variant = null, chunkKey = null, meta = null) {
         let blockType = type
 
         if (type === 'water') {
@@ -88,7 +204,8 @@ export class VoxelBuilder {
         // Use provided variant or random
         const v = variant !== null ? variant : this.getVariantFromHash(type, x, y, z)
 
-        this.dummy.position.set(x, y, z)
+        const metaData = meta !== null ? meta : (this.blockDefs?.getDefaultMeta(type) || null)
+        this.applyTransform(type, { x, y, z }, metaData)
         this.dummy.updateMatrix()
 
         const key = chunkKey || this.getChunkKeyFromPosition(x, z)
@@ -111,12 +228,13 @@ export class VoxelBuilder {
             x,
             y,
             z,
-            layer
+            layer,
+            meta: metaData
         })
 
         // 记录到方块注册表
         if (this.registry) {
-            this.registry.add(type, x, y, z)
+            this.registry.add(type, x, y, z, metaData)
         }
     }
 
@@ -137,7 +255,7 @@ export class VoxelBuilder {
      * @param {Block} block - 方块对象
      */
     addBlockFromObject(block) {
-        this.addBlock(block.type, block.x, block.y, block.z, block.variant)
+        this.addBlock(block.type, block.x, block.y, block.z, block.variant, null, block.meta || null)
     }
 
     /**
@@ -166,19 +284,58 @@ export class VoxelBuilder {
         return type
     }
 
+    getShape(type) {
+        return this.blockDefs ? this.blockDefs.getShape(this.normalizeType(type)) : 'cube'
+    }
+
+    getFacingRotation(facing) {
+        switch (facing) {
+            case 'east': return Math.PI / 2
+            case 'south': return Math.PI
+            case 'west': return -Math.PI / 2
+            default: return 0 // north
+        }
+    }
+
+    applyTransform(type, pos, meta) {
+        const shape = this.getShape(type)
+        this.dummy.position.set(pos.x, pos.y, pos.z)
+        this.dummy.rotation.set(0, 0, 0)
+
+        if (shape === 'slab') {
+            const half = meta?.half === 'top' ? 'top' : 'bottom'
+            const offsetY = half === 'top' ? 0.25 : -0.25
+            this.dummy.position.y += offsetY
+        } else if (shape === 'stair') {
+            const facing = meta?.facing || 'north'
+            this.dummy.rotation.y = this.getFacingRotation(facing)
+        } else if (shape === 'torch') {
+            this.dummy.rotation.set(0, 0, 0)
+            this.dummy.position.y -= 0.05
+        }
+    }
+
     isFaceExposed(type, nx, ny, nz) {
         if (!this.registry || !this.blockDefs) return true
-        const t = this.registry.get(nx, ny, nz)
+        const entry = this.registry.getEntry(nx, ny, nz)
+        const t = entry?.type || null
         const baseType = this.normalizeType(type)
         const sameWater = baseType === 'water' && this.normalizeType(t) === 'water'
         if (sameWater) return false
         if (!t) return true
-        const opt = this.blockDefs.getMaterialOptions(this.normalizeType(t))
-        return opt.transparent === true
+        const norm = this.normalizeType(t)
+        const solid = this.blockDefs.isSolid(norm)
+        // 非立方体（如半砖、楼梯）不应完全遮挡邻面，保持暴露
+        const neighborShape = this.getShape(norm)
+        if (neighborShape !== 'cube') return true
+        const opt = this.blockDefs.getMaterialOptions(norm)
+        return !solid || opt.transparent === true
     }
 
     getFaceMask(type, x, y, z) {
         if (!this.registry || !this.blockDefs) return this.fullFaceMask
+        const shape = this.getShape(type)
+        if (shape !== 'cube') return this.fullFaceMask
         let mask = 0
         const baseType = this.normalizeType(type)
         for (let i = 0; i < this.faceDirections.length; i++) {
@@ -212,6 +369,16 @@ export class VoxelBuilder {
         return geom
     }
 
+    getGeometry(type, mask) {
+        const shape = this.getShape(type)
+        if (shape === 'cube') return this.getGeometryForMask(mask)
+        if (shape === 'torch') {
+            // 火把的几何体是一个对象，包含 stick 和 flame 两部分
+            return this.shapeGeometryCache[shape]
+        }
+        return this.shapeGeometryCache[shape] || this.sharedGeometry
+    }
+
     render(scene, chunkKey = 'default') {
         const chunkData = this.instances.get(chunkKey)
         if (!chunkData) return []
@@ -223,6 +390,50 @@ export class VoxelBuilder {
                 if (!instances || instances.length === 0) continue
                 const filtered = instances.filter(inst => inst.layer === layerName)
                 if (filtered.length === 0) continue
+
+                // 特殊处理：火把需要渲染两个部分（杆和火焰）
+                if (type === 'torch') {
+                    const mats = this.materialsCache.get('torch')
+                    if (!mats || mats.length < 2) continue
+
+                    const torchGeom = this.getGeometry('torch', null)
+                    const stickGeometry = torchGeom.stick
+                    const flameGeometry = torchGeom.flame
+
+                    // 分别收集杆和火焰的实例
+                    const stickInstances = filtered
+                    const flameInstances = filtered
+
+                    // 渲染杆部分（使用第一种材质）
+                    if (stickInstances.length > 0) {
+                        const mesh = new THREE.InstancedMesh(stickGeometry, mats[0], stickInstances.length)
+                        for (let i = 0; i < stickInstances.length; i++) {
+                            mesh.setMatrixAt(i, stickInstances[i].matrix)
+                        }
+                        mesh.castShadow = layerName === 'solid'
+                        mesh.receiveShadow = layerName !== 'water'
+                        mesh.instanceMatrix.needsUpdate = true
+                        scene.add(mesh)
+                        meshes.push(mesh)
+                        layers[layerName].push(mesh)
+                    }
+
+                    // 渲染火焰部分（使用第二种材质）
+                    if (flameInstances.length > 0) {
+                        const mesh = new THREE.InstancedMesh(flameGeometry, mats[1], flameInstances.length)
+                        for (let i = 0; i < flameInstances.length; i++) {
+                            mesh.setMatrixAt(i, flameInstances[i].matrix)
+                        }
+                        mesh.castShadow = false
+                        mesh.receiveShadow = false
+                        mesh.instanceMatrix.needsUpdate = true
+                        scene.add(mesh)
+                        meshes.push(mesh)
+                        layers[layerName].push(mesh)
+                    }
+
+                    continue
+                }
 
                 // Group by variant and face mask
                 const groups = {}
@@ -257,7 +468,7 @@ export class VoxelBuilder {
                     }
                     for (const [maskStr, variantInstances] of Object.entries(maskGroups)) {
                         const faceMask = Number(maskStr)
-                        const geometry = this.getGeometryForMask(faceMask)
+                        const geometry = this.getGeometry(type, faceMask)
                         if (!geometry) continue
                         const mesh = new THREE.InstancedMesh(geometry, material, variantInstances.length)
                         for (let i = 0; i < variantInstances.length; i++) {
@@ -305,6 +516,53 @@ export class VoxelBuilder {
             type === 'water_still' ? 'water' : type
         )
         const isWaterMaterial = type === 'water_wavy' || type === 'water_still' || type === 'water'
+        if (type === 'torch') {
+            // 火把由两部分组成：杆（木质）和火焰（发光）
+            // 创建木质纹理用于杆部
+            const torchTex = this.factory.createTexture('torch', 0)
+            const torchMat = new THREE.MeshLambertMaterial({
+                map: torchTex,
+                transparent: true,
+                side: THREE.DoubleSide
+            })
+
+            // 创建火焰纹理用于火焰部分
+            const flameTex = this.factory.createTexture('flame', 0)
+            const flameMat = new THREE.MeshLambertMaterial({
+                map: flameTex,
+                emissive: new THREE.Color(0xff6600),
+                emissiveIntensity: 0.8,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide
+            })
+
+            // 火把使用两种材质：[木质杆, 火焰]
+            this.materialsCache.set(type, [torchMat, flameMat])
+            return
+        }
+        if (type === 'flower') {
+            // Flower使用flower纹理
+            const flowerTex = this.factory.createTexture('flower', 0)
+            const flowerMat = new THREE.MeshLambertMaterial({
+                map: flowerTex,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide
+            })
+            this.materialsCache.set(type, [flowerMat])
+            return
+        }
+        if (type === 'cactus') {
+            const cactusTex = this.factory.createTexture('cactus', 0)
+            const cactusMat = new THREE.MeshLambertMaterial({
+                map: cactusTex,
+                transparent: true,
+                side: THREE.DoubleSide
+            })
+            this.materialsCache.set(type, [cactusMat])
+            return
+        }
         const mat = (tex) => new THREE.MeshLambertMaterial({
             map: tex,
             transparent: opts.transparent,

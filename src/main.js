@@ -59,15 +59,20 @@ const player = new PlayerController({
 })
 
 const inventory = new Inventory(27, [
-    { type: 'grass', count: 16 },
-    { type: 'dirt', count: 32 },
-    { type: 'stone', count: 32 },
-    { type: 'wood', count: 16 },
-    { type: 'sand', count: 16 },
-    { type: 'snow', count: 16 },
-    { type: 'cactus', count: 8 },
-    { type: 'flower', count: 16 },
-    { type: 'leaves', count: 16 }
+    // 常用建材/工具放在前排，便于快捷栏
+    { type: 'stone', count: 128 },
+    { type: 'wood', count: 128 },
+    { type: 'slab_wood', count: 128 },
+    { type: 'stair_wood', count: 128 },
+    { type: 'torch', count: 128 },
+    { type: 'sand', count: 128 },
+    { type: 'grass', count: 128 },
+    { type: 'dirt', count: 128 },
+    // 次要物品放后排（可从背包拖到快捷栏）
+    { type: 'snow', count: 128 },
+    { type: 'cactus', count: 128 },
+    { type: 'flower', count: 128 },
+    { type: 'leaves', count: 128 }
 ])
 
 const interactor = new BlockInteractor({
@@ -98,11 +103,31 @@ console.log('世界信息:', world.getInfo())
 console.log('村庄统计:', world.getVillageStats())
 console.log('==================================')
 
+// ====== FPS 计数器 ======
+let frames = 0
+let fps = 0
+let lastTime = performance.now()
+let fpsUpdateInterval = 500 // 更新间隔（毫秒）
+let lastFpsUpdate = lastTime
+
+function updateFPS(currentTime) {
+    frames++
+    const elapsed = currentTime - lastFpsUpdate
+
+    if (elapsed >= fpsUpdateInterval) {
+        fps = Math.round((frames * 1000) / elapsed)
+        document.getElementById('fps-counter').textContent = `FPS: ${fps}`
+        frames = 0
+        lastFpsUpdate = currentTime
+    }
+}
+
 // ====== 动画循环 ======
 const clock = new THREE.Clock()
 function animate() {
     requestAnimationFrame(animate)
     const dt = clock.getDelta()
+    const currentTime = performance.now()
 
     player.update(dt)
     interactor.update()
@@ -112,6 +137,9 @@ function animate() {
     world.updateChunks(player.position, player.getForwardFlat())
 
     renderer.render(scene, camera)
+
+    // 更新FPS显示
+    updateFPS(currentTime)
 }
 animate()
 

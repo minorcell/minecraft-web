@@ -160,19 +160,13 @@ export class PlayerController {
         for (let x = minX; x <= maxX; x++) {
             for (let y = minY; y <= maxY; y++) {
                 for (let z = minZ; z <= maxZ; z++) {
-                    const type = this.world.registry.get(x, y, z)
+                    const entry = this.world.registry.getEntry(x, y, z)
+                    const type = entry?.type
                     if (type && this.blockDefs.isSolid(type)) {
-                        // 方块AABB（占据整个格子）
-                        const bMinX = x - 0.5
-                        const bMaxX = x + 0.5
-                        const bMinY = y - 0.5
-                        const bMaxY = y + 0.5
-                        const bMinZ = z - 0.5
-                        const bMaxZ = z + 0.5
-
-                        if (aabb.minX < bMaxX && aabb.maxX > bMinX &&
-                            aabb.minY < bMaxY && aabb.maxY > bMinY &&
-                            aabb.minZ < bMaxZ && aabb.maxZ > bMinZ) {
+                        const bb = this.getBlockAABB(x, y, z, entry)
+                        if (aabb.minX < bb.maxX && aabb.maxX > bb.minX &&
+                            aabb.minY < bb.maxY && aabb.maxY > bb.minY &&
+                            aabb.minZ < bb.maxZ && aabb.maxZ > bb.minZ) {
                             return true
                         }
                     }
@@ -224,6 +218,33 @@ export class PlayerController {
         const finalPos = pos.clone()
         finalPos[axis] += sign * (best - small)
         return { pos: finalPos, moved: sign * best, collided: true }
+    }
+
+    /**
+     * 获取方块碰撞盒（支持半砖）
+     */
+    getBlockAABB(x, y, z, entry) {
+        const shape = this.blockDefs.getShape(entry.type)
+        let minY = y - 0.5
+        let maxY = y + 0.5
+        if (shape === 'slab') {
+            const half = entry.meta?.half === 'top' ? 'top' : 'bottom'
+            if (half === 'top') {
+                minY = y
+                maxY = y + 0.5
+            } else {
+                minY = y - 0.5
+                maxY = y
+            }
+        }
+        return {
+            minX: x - 0.5,
+            maxX: x + 0.5,
+            minY,
+            maxY,
+            minZ: z - 0.5,
+            maxZ: z + 0.5
+        }
     }
 
     updateCameraOffset() {

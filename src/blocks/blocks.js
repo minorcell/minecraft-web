@@ -147,19 +147,56 @@ export const blocks = [
     id: 'cactus',
     name: '仙人掌',
     hardness: 0.8,
-    solid: true,
+    solid: false,
     breakable: true,
     drops: [{ id: 'cactus', count: 1 }],
+    shape: 'cactus',
+    renderLayer: 'alpha',
     textures: { all: 'cactus' }
   },
   {
     id: 'flower',
     name: '花簇',
     hardness: 0.2,
-    solid: true,
+    solid: false,
     breakable: true,
     drops: [{ id: 'flower', count: 1 }],
+    shape: 'flower',
+    renderLayer: 'alpha',
     textures: { all: 'flower' }
+  },
+  {
+    id: 'slab_wood',
+    name: '木台阶',
+    hardness: 0.8,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'slab_wood', count: 1 }],
+    shape: 'slab',
+    defaultMeta: { half: 'bottom' },
+    textures: { side: 'wood_side', top: 'wood_top', bottom: 'wood_top' }
+  },
+  {
+    id: 'stair_wood',
+    name: '木楼梯',
+    hardness: 0.8,
+    solid: true,
+    breakable: true,
+    drops: [{ id: 'stair_wood', count: 1 }],
+    shape: 'stair',
+    defaultMeta: { facing: 'north' },
+    textures: { side: 'wood_side', top: 'wood_top', bottom: 'wood_top' }
+  },
+  {
+    id: 'torch',
+    name: '火把',
+    hardness: 0.1,
+    solid: false,
+    breakable: true,
+    drops: [{ id: 'torch', count: 1 }],
+    shape: 'torch',
+    renderLayer: 'alpha',
+    textures: { all: 'torch' }
   }
 ]
 

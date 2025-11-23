@@ -75,16 +75,9 @@ export class BlockInteractor {
      * 创建裂纹覆盖层
      */
     createCrackOverlay() {
-        const geo = new THREE.BoxGeometry(1.01, 1.01, 1.01)
-        const texture = this.world.voxelBuilder.factory.createDestructionTexture(0)
-        texture.transparent = true
-        const mat = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            opacity: 0,
-            depthWrite: false,
-            side: THREE.DoubleSide
-        })
+        // 裂纹效果移除，保留空占位
+        const geo = new THREE.BoxGeometry(0, 0, 0)
+        const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 })
         const mesh = new THREE.Mesh(geo, mat)
         mesh.visible = false
         return mesh
@@ -139,6 +132,9 @@ export class BlockInteractor {
             dirt: { color: '#8b5a2b', secondary: '#6f3f1e', short: '土' },
             stone: { color: '#8a8a8a', secondary: '#707070', short: '石' },
             wood: { color: '#9c6b3c', secondary: '#7a4c20', short: '木' },
+            slab_wood: { color: '#8c6235', secondary: '#6f4a27', short: '台' },
+            stair_wood: { color: '#9c6b3c', secondary: '#7a4c20', short: '梯' },
+            torch: { color: '#d49a38', secondary: '#ffcc66', short: '火' },
             sand: { color: '#e2cf8c', secondary: '#cdb470', short: '沙' },
             snow: { color: '#f4f7fb', secondary: '#dce5f2', short: '雪' },
             cactus: { color: '#3b8c3b', secondary: '#2f7030', short: '仙' },
@@ -715,6 +711,9 @@ export class BlockInteractor {
             })
         }
 
+        // 清理失去支撑的火把（位于被破坏方块上方）
+        this.cleanupUnsupportedTorches(positions)
+
         // 简单水流：仅在水位以下或相邻侧面有水且下方有支撑时填充
         const neighbors = [
             [1, 0, 0], [-1, 0, 0],
@@ -782,11 +781,34 @@ export class BlockInteractor {
             pz = this.currentTarget.z + normal.z
         }
 
-        // 避免覆盖已有方块
-        if (this.registry.has(px, py, pz)) return
+        // 若在同一格内堆叠半砖，则合并为整块
+        const targetEntry = this.currentTarget ? this.registry.getEntry(this.currentTarget.x, this.currentTarget.y, this.currentTarget.z) : null
+        if (type.startsWith('slab_') && targetEntry?.type === type) {
+            px = this.currentTarget.x
+            py = this.currentTarget.y
+            pz = this.currentTarget.z
+        }
 
-        this.world.voxelBuilder.addBlock(type, px, py, pz)
-        this.registry.add(type, px, py, pz)
+        const placementNormal = this.derivePlacementNormal(px, py, pz)
+        const meta = this.computePlacementMeta(type, placementNormal)
+
+        // 火把仅允许放在实心方块顶部
+        if (type === 'torch') {
+            const belowType = this.registry.get(px, py - 1, pz)
+            if (!belowType || !this.blockDefs.isSolid(belowType)) return
+        }
+
+        const existing = this.registry.getEntry(px, py, pz)
+        if (existing) {
+            const merged = this.tryMergeWithExisting(type, meta, existing, { x: px, y: py, z: pz })
+            if (!merged) return
+            this.inventory.consume(this.selectedIndex)
+            this.updateInventoryUI()
+            this.world.refreshChunkAt(px, pz)
+            return
+        }
+
+        this.world.voxelBuilder.addBlock(type, px, py, pz, null, null, meta)
         this.inventory.consume(this.selectedIndex)
         this.updateInventoryUI()
         this.world.refreshChunkAt(px, pz)
@@ -808,6 +830,105 @@ export class BlockInteractor {
         return { x: 0, y: 0, z: Math.sign(dir.z) }
     }
 
+    /**
+    * 基于目标方块与放置位置差值计算法线，若不可用则退回视线方向
+    */
+    derivePlacementNormal(px, py, pz) {
+        if (this.currentTarget) {
+            const nx = px - this.currentTarget.x
+            const ny = py - this.currentTarget.y
+            const nz = pz - this.currentTarget.z
+            if (nx !== 0 || ny !== 0 || nz !== 0) {
+                return { x: Math.sign(nx), y: Math.sign(ny), z: Math.sign(nz) }
+            }
+        }
+        return this.getPlacementNormal()
+    }
+
+    /**
+     * 基于放置法线/朝向推断方块元数据（半砖/楼梯朝向等）
+     */
+    computePlacementMeta(type, normal = { x: 0, y: 0, z: 1 }) {
+        const shape = this.blockDefs.getShape(type)
+        if (shape === 'slab') {
+            const half = normal.y < 0 ? 'top' : 'bottom'
+            return { half }
+        }
+        if (shape === 'stair') {
+            const dir = this.player?.getForwardFlat
+                ? this.player.getForwardFlat()
+                : this.camera.getWorldDirection(new THREE.Vector3()).setY(0).normalize()
+            let facing = 'north'
+            if (Math.abs(dir.x) > Math.abs(dir.z)) {
+                facing = dir.x > 0 ? 'west' : 'east' // 面朝玩家：台阶高端背离玩家
+            } else if (Math.abs(dir.z) > 0) {
+                facing = dir.z > 0 ? 'north' : 'south'
+            }
+            return { facing }
+        }
+        return null
+    }
+
+    normalToFacing(normal) {
+        const { x, y, z } = normal
+        if (Math.abs(x) > Math.abs(y) && Math.abs(x) > Math.abs(z)) {
+            return x > 0 ? 'east' : 'west'
+        }
+        if (Math.abs(z) > Math.abs(y)) {
+            return z > 0 ? 'south' : 'north'
+        }
+        return y > 0 ? 'up' : 'down'
+    }
+
+    /**
+     * 与已有方块的特殊合并逻辑（如上下半砖合成整块）
+     */
+    tryMergeWithExisting(type, meta, existing, pos) {
+        const shape = this.blockDefs.getShape(type)
+        if (shape === 'slab' && existing.type === type) {
+            let newHalf = meta?.half || 'bottom'
+            const oldHalf = existing.meta?.half || 'bottom'
+            if (newHalf === oldHalf) {
+                newHalf = oldHalf === 'bottom' ? 'top' : 'bottom'
+            }
+            const fullType = this.getFullBlockFromSlab(type)
+            this.world.voxelBuilder.removeBlock(pos.x, pos.y, pos.z)
+            this.world.voxelBuilder.addBlock(fullType, pos.x, pos.y, pos.z)
+            return true
+        }
+        return false
+    }
+
+    getFullBlockFromSlab(slabType) {
+        if (slabType.startsWith('slab_')) {
+            const t = slabType.replace('slab_', '')
+            if (this.blockDefs.get(t)) return t
+        }
+        return 'wood'
+    }
+
+    isTorchSupported(x, y, z) {
+        const below = this.registry.get(x, y - 1, z)
+        return !!below && this.blockDefs.isSolid(below)
+    }
+
+    cleanupUnsupportedTorches(positions) {
+        const handled = new Set()
+        const key = (x, y, z) => `${x},${y},${z}`
+        for (const pos of positions) {
+            const tx = pos.x
+            const ty = pos.y + 1
+            const tz = pos.z
+            const k = key(tx, ty, tz)
+            if (handled.has(k)) continue
+            if (this.registry.get(tx, ty, tz) === 'torch' && !this.isTorchSupported(tx, ty, tz)) {
+                this.world.voxelBuilder.removeBlock(tx, ty, tz)
+                this.spawnDrop('torch', tx + 0.1 * (Math.random() - 0.5), ty + 0.6, tz + 0.1 * (Math.random() - 0.5))
+                handled.add(k)
+            }
+        }
+    }
+
     update() {
         this.updateHighlight()
 
@@ -820,17 +941,13 @@ export class BlockInteractor {
             } else {
                 const progress = (now - this.breakStart) / this.breakDuration
                 this.updateProgressUI(progress)
-                this.updateCrackOverlay(progress)
                 if (progress >= 1) {
-                    // 在摧毁方块之前先隐藏裂纹覆盖层
-                    this.hideCrackOverlay()
                     this.breakBlockInstant(this.currentTarget)
                     this.stopBreaking()
                 }
             }
         } else {
             this.updateProgressUI(0)
-            this.hideCrackOverlay()
         }
 
         this.updateDrops()
@@ -840,23 +957,7 @@ export class BlockInteractor {
      * 更新裂纹覆盖层的位置和不透明度
      */
     updateCrackOverlay(progress) {
-        if (!this.currentTarget) {
-            this.hideCrackOverlay()
-            return
-        }
-        const { x, y, z } = this.currentTarget
-        this.crackOverlay.position.set(x, y, z)
-        this.crackOverlay.visible = true
-        // 根据进度调整破坏可见度与阶段纹理
-        const stages = 5
-        const stage = Math.min(stages, Math.max(0, Math.floor(progress * (stages + 1))))
-        if (this.crackOverlay.material._stage !== stage) {
-            const tex = this.world.voxelBuilder.factory.createDestructionTexture(stage, stages)
-            this.crackOverlay.material.map = tex
-            this.crackOverlay.material._stage = stage
-            this.crackOverlay.material.needsUpdate = true
-        }
-        this.crackOverlay.material.opacity = Math.min(1, 0.4 + progress * 0.8)
+        this.hideCrackOverlay()
     }
 
     hideCrackOverlay() {
@@ -914,11 +1015,13 @@ export class BlockInteractor {
         const minY = this.world.terrain.settings.bedrockLevel
 
         for (let y = startY; y >= minY; y--) {
-            const type = this.registry.get(bx, y, bz)
+            const entry = this.registry.getEntry(bx, y, bz)
+            const type = entry?.type
             if (type && this.blockDefs.isSolid(type)) {
-                const belowType = this.registry.get(bx, y - 1, bz)
-                if (y <= minY || (belowType && this.blockDefs.isSolid(belowType))) {
-                    return { hit: true, y: y + 0.5 }
+                const top = this.getBlockTopY(type, entry.meta, y)
+                const belowEntry = this.registry.getEntry(bx, y - 1, bz)
+                if (y <= minY || (belowEntry?.type && this.blockDefs.isSolid(belowEntry.type))) {
+                    return { hit: true, y: top }
                 }
                 // 漂浮块（下方是空气/非实心），忽略继续向下找
             }
@@ -926,5 +1029,14 @@ export class BlockInteractor {
 
         const groundY = this.world.terrain.getHeight(bx, bz)
         return { hit: false, y: groundY + 0.5 }
+    }
+
+    getBlockTopY(type, meta, y) {
+        const shape = this.blockDefs.getShape(type)
+        if (shape === 'slab') {
+            const half = meta?.half === 'top' ? 'top' : 'bottom'
+            return half === 'top' ? y + 0.5 : y
+        }
+        return y + 0.5
     }
 }

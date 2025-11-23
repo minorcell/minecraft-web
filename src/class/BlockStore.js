@@ -3,7 +3,7 @@
  */
 export class BlockStore {
     constructor() {
-        /** @type {Map<string, string>} */
+        /** @type {Map<string, { type: string, meta?: any }>} */
         this.map = new Map()
     }
 
@@ -11,8 +11,8 @@ export class BlockStore {
         return `${x},${y},${z}`
     }
 
-    add(type, x, y, z) {
-        this.map.set(this.key(x, y, z), type)
+    add(type, x, y, z, meta = null) {
+        this.map.set(this.key(x, y, z), { type, meta })
     }
 
     remove(x, y, z) {
@@ -20,6 +20,11 @@ export class BlockStore {
     }
 
     get(x, y, z) {
+        const entry = this.map.get(this.key(x, y, z))
+        return entry ? entry.type : null
+    }
+
+    getEntry(x, y, z) {
         return this.map.get(this.key(x, y, z)) || null
     }
 
