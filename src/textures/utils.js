@@ -29,22 +29,22 @@ export function rgbToHex(r, g, b) {
 
 export function fillNoise(ctx, color1, color2, factor, seed = 0) {
     ctx.fillStyle = color1
-    ctx.fillRect(0, 0, 64, 64)
+    ctx.fillRect(0, 0, 32, 32)
 
     const random = seededRandom(seed)
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 100; i++) {
         ctx.fillStyle = random() > 0.5 ? color2 : color1
         ctx.globalAlpha = factor
-        const x = Math.floor(random() * 16) * 4
-        const y = Math.floor(random() * 16) * 4
+        const x = Math.floor(random() * 8) * 4
+        const y = Math.floor(random() * 8) * 4
         ctx.fillRect(x, y, 4, 4)
     }
 
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 25; i++) {
         ctx.fillStyle = adjustColor(color1, random() > 0.5 ? -20 : 20)
         ctx.globalAlpha = factor * 0.5
-        const x = Math.floor(random() * 32) * 2
-        const y = Math.floor(random() * 32) * 2
+        const x = Math.floor(random() * 16) * 2
+        const y = Math.floor(random() * 16) * 2
         ctx.fillRect(x, y, 2, 2)
     }
 
@@ -53,7 +53,7 @@ export function fillNoise(ctx, color1, color2, factor, seed = 0) {
 
 export function addNoise(ctx, x, y, w, h, color, factor, seed = 0) {
     const random = seededRandom(seed)
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 25; i++) {
         ctx.fillStyle = color
         ctx.globalAlpha = factor
         const rx = x + Math.floor(random() * (w / 4)) * 4
@@ -103,8 +103,8 @@ export function addBlobs(ctx, color, count, minSize, maxSize, seed = 0) {
     for (let i = 0; i < count; i++) {
         ctx.fillStyle = color
         ctx.globalAlpha = 0.2 + random() * 0.4
-        const x = random() * 64
-        const y = random() * 64
+        const x = random() * 32
+        const y = random() * 32
         const size = minSize + random() * (maxSize - minSize)
         ctx.beginPath()
         ctx.arc(x, y, size, 0, Math.PI * 2)

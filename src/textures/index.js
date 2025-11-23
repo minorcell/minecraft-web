@@ -68,8 +68,8 @@ export class TextureFactory {
         if (this.textureCache[key]) return this.textureCache[key]
 
         const canvas = document.createElement('canvas')
-        canvas.width = 64
-        canvas.height = 64
+        canvas.width = 32
+        canvas.height = 32
         const ctx = canvas.getContext('2d')
         ctx.imageSmoothingEnabled = false
 

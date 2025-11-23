@@ -74,7 +74,7 @@ export class BlockPreviewRenderer {
      * @param {import('../voxel.js').VoxelBuilder|null} voxelBuilder
      * @param {number} [size] 输出尺寸（正方形像素）
      */
-    constructor(blockDefs, textureFactory, voxelBuilder = null, size = 128) {
+    constructor(blockDefs, textureFactory, voxelBuilder = null, size = 96) {
         this.blockDefs = blockDefs
         this.textureFactory = textureFactory
         this.voxelBuilder = voxelBuilder

@@ -5,24 +5,24 @@ export function generateDirt(ctx, seed) {
 
     const rand = seededRandom(seed)
 
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 30; i++) {
         ctx.fillStyle = adjustColor('#8a5a34', rand() > 0.5 ? 20 : -25)
         ctx.globalAlpha = 0.4
-        const x = Math.floor(rand() * 16) * 4
-        const y = Math.floor(rand() * 16) * 4
-        const size = 2 + Math.floor(rand() * 3)
+        const x = Math.floor(rand() * 8) * 4
+        const y = Math.floor(rand() * 8) * 4
+        const size = 1 + Math.floor(rand() * 2)
         ctx.fillRect(x, y, size, size)
     }
 
-    addDots(ctx, 0, 0, 64, 64, '#5c3a20', 100, 1.5, seed + 1)
-    addDots(ctx, 0, 0, 64, 64, '#9a6a44', 80, 1, seed + 2)
+    addDots(ctx, 0, 0, 32, 32, '#5c3a20', 50, 1, seed + 1)
+    addDots(ctx, 0, 0, 32, 32, '#9a6a44', 40, 1, seed + 2)
 
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 15; i++) {
         ctx.fillStyle = '#4a2e18'
         ctx.globalAlpha = 0.3
-        const x = rand() * 64
-        const y = rand() * 64
-        const size = 2 + rand() * 3
+        const x = rand() * 32
+        const y = rand() * 32
+        const size = 1 + rand() * 2
         ctx.fillRect(x, y, size, size)
     }
 
