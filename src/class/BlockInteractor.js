@@ -50,6 +50,14 @@ export class BlockInteractor {
         this.heldIcon = this.createHeldIcon()
         this.progressUI = this.createProgressUI()
         this.inventoryOpen = false
+        this.mapOpen = false
+        this.mapSize = 400
+        this.mapBaseRadius = 128
+        this.mapZoom = 1.0
+        const mapUI = this.createMapUI()
+        this.mapHolder = mapUI.holder
+        this.mapCanvas = mapUI.canvas
+        this.mapCtx = mapUI.ctx
         this.isBreaking = false
         this.breakStart = 0
         this.breakDuration = 0
@@ -588,10 +596,19 @@ export class BlockInteractor {
             if (e.code === 'KeyB' && this.guideBook) {
                 this.guideBook.toggle()
             }
+
+            // M 打开/关闭小地图
+            if (e.code === 'KeyM') {
+                this.toggleMap()
+            }
         })
 
         window.addEventListener('mousedown', (e) => {
             if (this.inventoryOpen) {
+                e.stopPropagation()
+                return
+            }
+            if (this.mapOpen) {
                 e.stopPropagation()
                 return
             }
@@ -608,6 +625,10 @@ export class BlockInteractor {
                 e.stopPropagation()
                 return
             }
+            if (this.mapOpen) {
+                e.stopPropagation()
+                return
+            }
             if (e.button === 0) {
                 this.stopBreaking()
             }
@@ -617,6 +638,13 @@ export class BlockInteractor {
         window.addEventListener('wheel', (e) => {
             if (this.inventoryOpen) {
                 e.stopPropagation()
+                return
+            }
+            if (this.mapOpen) {
+                e.preventDefault()
+                const delta = Math.sign(e.deltaY)
+                this.mapZoom = Math.max(0.5, Math.min(4, this.mapZoom * (delta > 0 ? 1 / 1.2 : 1.2)))
+                this.renderMinimap()
                 return
             }
             const dir = Math.sign(e.deltaY)
@@ -993,22 +1021,22 @@ export class BlockInteractor {
             // 拾取检测
             if (drop.mesh.position.distanceTo(playerPos) <= pickupRadius) {
                 this.inventory.add(drop.type, 1)
-                this.updateInventoryUI()
-                this.scene.remove(drop.mesh)
-                continue
-            }
-
-            remaining.push(drop)
+            this.updateInventoryUI()
+            this.scene.remove(drop.mesh)
+            continue
         }
-        this.drops = remaining
-    }
 
-    /**
-     * 从当前位置向下扫描，找到最近的实心方块顶部；若无则返回地形高度
-     * @param {THREE.Vector3} pos
-     * @returns {{hit:boolean,y:number}}
-     */
-    findSupportBelow(pos) {
+        remaining.push(drop)
+    }
+    this.drops = remaining
+}
+
+/**
+ * 从当前位置向下扫描，找到最近的实心方块顶部；若无则返回地形高度
+ * @param {THREE.Vector3} pos
+ * @returns {{hit:boolean,y:number}}
+ */
+findSupportBelow(pos) {
         const bx = Math.floor(pos.x + 0.5)
         const bz = Math.floor(pos.z + 0.5)
         const startY = Math.floor(pos.y + 0.5)
@@ -1029,6 +1057,136 @@ export class BlockInteractor {
 
         const groundY = this.world.terrain.getHeight(bx, bz)
         return { hit: false, y: groundY + 0.5 }
+    }
+
+    /**
+     * 小地图 UI
+     */
+    createMapUI() {
+        const holder = document.createElement('div')
+        holder.id = 'minimap'
+        holder.style.position = 'absolute'
+        holder.style.top = '50%'
+        holder.style.left = '50%'
+        holder.style.transform = 'translate(-50%, -50%)'
+        holder.style.width = `${this.mapSize + 20}px`
+        holder.style.padding = '10px'
+        holder.style.borderRadius = '12px'
+        holder.style.background = 'rgba(10,10,10,0.72)'
+        holder.style.border = '1px solid rgba(255,255,255,0.25)'
+        holder.style.backdropFilter = 'blur(6px)'
+        holder.style.boxShadow = '0 10px 30px rgba(0,0,0,0.45)'
+        holder.style.display = 'none'
+        holder.style.zIndex = '1000'
+
+        const title = document.createElement('div')
+        title.textContent = '地图 (M 关闭)'
+        title.style.color = '#fff'
+        title.style.fontSize = '14px'
+        title.style.marginBottom = '8px'
+        title.style.textAlign = 'center'
+        holder.appendChild(title)
+
+        const canvas = document.createElement('canvas')
+        canvas.width = this.mapSize
+        canvas.height = this.mapSize
+        canvas.style.border = '1px solid rgba(255,255,255,0.2)'
+        canvas.style.cursor = 'crosshair'
+        holder.appendChild(canvas)
+
+        canvas.addEventListener('click', (e) => {
+            if (!this.mapOpen) return
+            const rect = canvas.getBoundingClientRect()
+            const cx = e.clientX - rect.left
+            const cy = e.clientY - rect.top
+            this.teleportFromMap(cx, cy)
+        })
+
+        document.body.appendChild(holder)
+        const ctx = canvas.getContext('2d')
+        ctx.imageSmoothingEnabled = false
+        return { holder, canvas, ctx }
+    }
+
+    toggleMap() {
+        this.mapOpen = !this.mapOpen
+        this.mapHolder.style.display = this.mapOpen ? 'block' : 'none'
+        if (this.mapOpen) {
+            if (document.pointerLockElement) {
+                document.exitPointerLock()
+            }
+            this.renderMinimap()
+        }
+    }
+
+    renderMinimap() {
+        if (!this.player || !this.world || !this.mapCtx) return
+        const ctx = this.mapCtx
+        const size = this.mapSize
+        const radius = this.mapBaseRadius / this.mapZoom
+        ctx.clearRect(0, 0, size, size)
+
+        const centerX = this.player.position.x
+        const centerZ = this.player.position.z
+        const scale = (radius * 2) / size
+        const waterLevel = this.world.terrain.settings.waterLevel
+        const snowLevel = this.world.terrain.settings.snowLevel
+
+        // 地形底图：低 zoom 时降低采样密度，提升性能；高 zoom 时细采样
+        const sampleStep = this.mapZoom >= 2 ? 1 : this.mapZoom >= 1 ? 1 : 2
+        for (let px = 0; px < size; px += sampleStep) {
+            for (let pz = 0; pz < size; pz += sampleStep) {
+                const wx = centerX + (px - size / 2) * scale
+                const wz = centerZ + (pz - size / 2) * scale
+                const h = this.world.terrain.getHeight(wx, wz)
+                let color = '#4caf50' // grass default
+                if (h <= waterLevel) color = '#2b6fe0'
+                else if (h <= waterLevel + 1) color = '#d8c07a'
+                else if (h >= snowLevel + 2) color = '#f3f6fb'
+                else if (this.world.terrain.isUnderwater(wx, wz)) color = '#2b6fe0'
+                ctx.fillStyle = color
+                ctx.fillRect(px, pz, sampleStep, sampleStep)
+            }
+        }
+
+        // 绘制村庄位置（城镇中心 + radius 圈）
+        ctx.fillStyle = '#ffcc00'
+        this.world.villages.forEach(v => {
+            const dx = (v.x - centerX) / scale + size / 2
+            const dz = (v.z - centerZ) / scale + size / 2
+            if (dx >= -10 && dx <= size + 10 && dz >= -10 && dz <= size + 10) {
+                const sz = this.mapZoom >= 2 ? 6 : 4
+                ctx.fillRect(dx - sz / 2, dz - sz / 2, sz, sz)
+                ctx.strokeStyle = 'rgba(255,204,0,0.4)'
+                ctx.lineWidth = 1
+                ctx.beginPath()
+                ctx.arc(dx, dz, Math.min(v.radius / scale, size), 0, Math.PI * 2)
+                ctx.stroke()
+            }
+        })
+
+        // 玩家位置
+        ctx.fillStyle = '#ff4444'
+        ctx.fillRect(size / 2 - 3, size / 2 - 3, 6, 6)
+
+        // 缩放提示
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'
+        ctx.fillRect(8, size - 22, 90, 16)
+        ctx.fillStyle = '#fff'
+        ctx.font = '12px sans-serif'
+        ctx.fillText(`Zoom x${this.mapZoom.toFixed(1)}`, 12, size - 10)
+    }
+
+    teleportFromMap(px, pz) {
+        const size = this.mapSize
+        const radius = this.mapBaseRadius / this.mapZoom
+        const scale = (radius * 2) / size
+        const worldX = this.player.position.x + (px - size / 2) * scale
+        const worldZ = this.player.position.z + (pz - size / 2) * scale
+        const success = this.player.findSafeSpawn({ x: worldX, z: worldZ }, 6)
+        if (success) {
+            this.world.updateChunks(this.player.position)
+        }
     }
 
     getBlockTopY(type, meta, y) {

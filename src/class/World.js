@@ -24,7 +24,7 @@ export class World {
         this.scene = options.scene
         this.settings = {
             worldSize: options.worldSize || 128,
-            villageCount: options.villageCount || 8,
+            villageCount: options.villageCount || 5,
             treeCount: options.treeCount || 520,
             grassCount: options.grassCount || 1000,
             seed: options.seed || Date.now(),
@@ -84,8 +84,6 @@ export class World {
 
     applyChunkData(payload) {
         const { chunkKey } = payload
-        // 清理旧数据，避免重复叠加
-        this.voxelBuilder.clearChunk(chunkKey)
         if (payload.blocks) {
             for (const block of payload.blocks) {
                 this.voxelBuilder.addBlock(block.type, block.x, block.y, block.z, null, chunkKey)
@@ -560,6 +558,28 @@ export class World {
         }
 
         return stats
+    }
+
+    /**
+     * 获取距离指定点最近的村庄中心
+     * @param {{x:number,z:number}} pos
+     * @returns {{x:number,y:number,z:number}|null}
+     */
+    getNearestVillage(pos = { x: 0, z: 0 }) {
+        if (!this.villages.length) return null
+        let best = null
+        let bestDist = Infinity
+        for (const v of this.villages) {
+            const dx = v.x - pos.x
+            const dz = v.z - pos.z
+            const d2 = dx * dx + dz * dz
+            if (d2 < bestDist) {
+                bestDist = d2
+                best = v
+            }
+        }
+        if (!best) return null
+        return { x: best.x, y: best.y, z: best.z }
     }
 
     /**

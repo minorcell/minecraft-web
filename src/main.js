@@ -43,7 +43,7 @@ const world = new World({
     scene: scene,
     settings: {
         worldSize: 256,
-        villageCount: 8,
+        villageCount: 5,
         treeCount: 520,
         grassCount: 2000
     },
@@ -94,7 +94,7 @@ const weather = new WeatherSystem({
 
 // 生成世界
 world.generate()
-player.findSafeSpawn({ x: 0, z: 0 }, 20)
+player.spawnAtVillage(world)
 weather.update(0, player.position)
 
 // ====== 显示世界信息 =====

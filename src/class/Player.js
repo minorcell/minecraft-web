@@ -45,7 +45,7 @@ export class PlayerController {
         if (this.world?.events) {
             this.world.events.on('chunk:loaded', () => {
                 if (this.spawnChecked) return
-                if (this.findSafeSpawn(this.position, 12)) {
+                if (this.spawnAtVillage(this.world, 12)) {
                     this.spawnChecked = true
                 }
             })
@@ -86,6 +86,19 @@ export class PlayerController {
             }
         }
         return false
+    }
+
+    /**
+     * 优先在最近村庄附近出生，失败则回退默认逻辑
+     * @param {import('./World.js').World} world
+     * @param {number} radius
+     */
+    spawnAtVillage(world, radius = 16) {
+        const v = world.getNearestVillage({ x: 0, z: 0 })
+        if (v && this.findSafeSpawn({ x: v.x, z: v.z }, radius)) {
+            return true
+        }
+        return this.findSafeSpawn({ x: 0, z: 0 }, radius)
     }
 
     resolveEmbedding() {
