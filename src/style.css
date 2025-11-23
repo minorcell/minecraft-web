@@ -112,8 +112,6 @@ canvas {
 
 .hud-slot {
     position: relative;
-    width: 48px;
-    height: 48px;
     display: grid;
     place-items: center;
     background: linear-gradient(180deg, var(--hud-slot), var(--hud-slot-dark));
@@ -132,20 +130,14 @@ canvas {
         0 0 12px rgba(243, 229, 161, 0.35);
 }
 
-.hud-slot.is-empty .hud-icon {
-    opacity: 0.35;
-    filter: grayscale(0.4);
-}
 
 .hud-slot-inner {
     position: relative;
+    display: grid;
+    place-items: center;
 }
 
 .hud-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 2px;
-    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25);
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
@@ -206,13 +198,13 @@ canvas {
 }
 
 .inventory-slot {
-    width: 60px;
-    height: 60px;
+    width: 64px;
+    height: 64px;
 }
 
 .inventory-slot .hud-icon {
-    width: 36px;
-    height: 36px;
+    width: 60px;
+    height: 60px;
 }
 
 .hud-held {
@@ -222,9 +214,4 @@ canvas {
     transform: translate(-50%, -50%);
     pointer-events: none;
     z-index: 5000;
-}
-
-.hud-held .hud-icon {
-    width: 32px;
-    height: 32px;
 }

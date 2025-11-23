@@ -42,7 +42,7 @@ export class BlockInteractor {
         this.inventorySlots = []
         this.blockMeta = this.createBlockMeta()
         this.textureFactory = new TextureFactory()
-        this.previewRenderer = new BlockPreviewRenderer(this.blockDefs, this.textureFactory)
+        this.previewRenderer = new BlockPreviewRenderer(this.blockDefs, this.textureFactory, this.world.voxelBuilder)
         this.hotbarUI = this.createHotbarUI()
         this.hotbarLabel = this.createHotbarLabel()
         this.inventoryUI = this.createInventoryUI()
@@ -158,7 +158,6 @@ export class BlockInteractor {
         const textures = this.blockDefs.getTextures(type) || {}
         const opts = this.blockDefs.getMaterialOptions(type)
         const meta = this.blockMeta[type] || this.blockMeta.default
-        const shape = this.blockDefs.getShape(type)
 
         const makeMaterial = (texName) => {
             if (!texName) {
@@ -235,14 +234,12 @@ export class BlockInteractor {
 
     createIcon(style) {
         const icon = document.createElement('div')
-        icon.style.width = '32px'
-        icon.style.height = '32px'
+        icon.style.width = '50px'
+        icon.style.height = '50px'
         icon.style.borderRadius = '4px'
-        icon.style.display = 'grid'
-        icon.style.placeItems = 'center'
         icon.style.fontWeight = 'bold'
         icon.style.color = '#111'
-        icon.style.textShadow = '0 1px 1px rgba(255,255,255,0.6)'
+        icon.style.textShadow = '0 1px 1px rga(255,255,255,0.6)'
         icon.className = 'hud-icon'
         return icon
     }
@@ -365,9 +362,9 @@ export class BlockInteractor {
         const stopBubble = (e) => {
             e.stopPropagation()
         }
-        ;['click', 'mousedown', 'mouseup', 'wheel', 'contextmenu'].forEach(evt => {
-            panel.addEventListener(evt, stopBubble)
-        })
+            ;['click', 'mousedown', 'mouseup', 'wheel', 'contextmenu'].forEach(evt => {
+                panel.addEventListener(evt, stopBubble)
+            })
 
         const title = document.createElement('div')
         title.className = 'hud-panel-title'
@@ -1054,22 +1051,22 @@ export class BlockInteractor {
             // 拾取检测
             if (drop.mesh.position.distanceTo(playerPos) <= pickupRadius) {
                 this.inventory.add(drop.type, 1)
-            this.updateInventoryUI()
-            this.scene.remove(drop.mesh)
-            continue
+                this.updateInventoryUI()
+                this.scene.remove(drop.mesh)
+                continue
+            }
+
+            remaining.push(drop)
         }
-
-        remaining.push(drop)
+        this.drops = remaining
     }
-    this.drops = remaining
-}
 
-/**
- * 从当前位置向下扫描，找到最近的实心方块顶部；若无则返回地形高度
- * @param {THREE.Vector3} pos
- * @returns {{hit:boolean,y:number}}
- */
-findSupportBelow(pos) {
+    /**
+     * 从当前位置向下扫描，找到最近的实心方块顶部；若无则返回地形高度
+     * @param {THREE.Vector3} pos
+     * @returns {{hit:boolean,y:number}}
+     */
+    findSupportBelow(pos) {
         const bx = Math.floor(pos.x + 0.5)
         const bz = Math.floor(pos.z + 0.5)
         const startY = Math.floor(pos.y + 0.5)
