@@ -159,6 +159,8 @@ let lastFpsUpdate = lastTime
 let isPaused = false
 let shouldRelockPointer = false
 const fpsEl = document.getElementById('fps-counter')
+if (fpsEl) fpsEl.style.display = 'none'
+const helpHint = createHelpHint()
 
 function updateFPS(currentTime) {
     frames++
@@ -166,7 +168,7 @@ function updateFPS(currentTime) {
 
     if (elapsed >= fpsUpdateInterval) {
         fps = Math.round((frames * 1000) / elapsed)
-        fpsEl.textContent = `FPS: ${fps}`
+        if (weather) weather.setFps(fps)
         frames = 0
         lastFpsUpdate = currentTime
     }
@@ -181,7 +183,7 @@ function togglePauseMenu(show) {
         if (document.pointerLockElement) {
             document.exitPointerLock()
         }
-        fpsEl.textContent = 'FPS: 暂停'
+        if (weather) weather.setFps('暂停')
     } else {
         const needLock = shouldRelockPointer || !document.pointerLockElement
         if (needLock) {
@@ -390,3 +392,11 @@ window.addEventListener('keydown', (e) => {
         togglePauseMenu(!isPaused)
     }
 })
+
+function createHelpHint() {
+    const el = document.createElement('div')
+    el.id = 'help-hint'
+    el.textContent = 'B 帮助 | E 背包 | Esc 设置 | M 地图'
+    document.body.appendChild(el)
+    return el
+}
