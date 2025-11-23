@@ -5,6 +5,7 @@ import { BlockInteractor } from './class/BlockInteractor.js'
 import { Inventory } from './class/Inventory.js'
 import { GuideBook } from './class/GuideBook.js'
 import { WeatherSystem } from './class/WeatherSystem.js'
+import { MusicPlayer } from './class/MusicPlayer.js'
 
 // ====== 场景设置 ======
 const scene = new THREE.Scene()
@@ -95,6 +96,17 @@ const weather = new WeatherSystem({
     ambientLight,
     dirLight
 })
+
+// 背景音乐：顺序播放后循环
+const music = new MusicPlayer({
+    playlist: [
+        'public/music/001.mp3',
+        'public/music/002.mp3',
+        'public/music/003.mp3'
+    ],
+    volume: 0.4
+})
+music.start()
 
 // 生成世界
 world.generate()
