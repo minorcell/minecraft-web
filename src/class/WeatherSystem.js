@@ -474,7 +474,7 @@ export class WeatherSystem {
                     positions[idx + 2] += swayZ[i] * dt * 0.35
                 }
 
-                if (positions[idx + 1] < -5 || Math.abs(positions[idx]) > half || Math.abs(positions[idx + 2]) > half) {
+                if (positions[idx + 1] < 0 || Math.abs(positions[idx]) > half || Math.abs(positions[idx + 2]) > half) {
                     positions[idx] = this.randBetween(-half, half)
                     positions[idx + 1] = height
                     positions[idx + 2] = this.randBetween(-half, half)
