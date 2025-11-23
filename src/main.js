@@ -31,9 +31,9 @@ scene.add(ambientLight)
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.0)
 dirLight.position.set(100, 100, 50)
 dirLight.castShadow = true
-dirLight.shadow.mapSize.width = 4096
-dirLight.shadow.mapSize.height = 4096
-dirLight.shadow.bias = -0.0008 // 减少高亮漏光
+dirLight.shadow.mapSize.width = 2048
+dirLight.shadow.mapSize.height = 2048
+dirLight.shadow.bias = -0.0006 // 减少高亮漏光
 dirLight.shadow.camera.near = 0.5
 dirLight.shadow.camera.far = 500
 dirLight.shadow.camera.left = -250

@@ -130,23 +130,23 @@ export class WeatherSystem {
         this.precipitations = {
             rain: this.createPrecipitation({
                 type: 'rain',
-                count: 1000,
+                count: 700,
                 area: 80,
                 height: 35,
                 size: 0.06,
                 color: 0x9db8e6,
-                speed: [18, 28],
-                baseOpacity: 0.9
+                speed: [16, 24],
+                baseOpacity: 0.8
             }),
             snow: this.createPrecipitation({
                 type: 'snow',
-                count: 700,
+                count: 520,
                 area: 70,
                 height: 30,
-                size: 0.2,
+                size: 0.18,
                 color: 0xffffff,
-                speed: [3, 6],
-                drift: 2.0,
+                speed: [2.6, 4.5],
+                drift: 1.4,
                 baseOpacity: 0.85
             })
         }
