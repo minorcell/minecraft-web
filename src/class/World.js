@@ -34,6 +34,7 @@ export class World {
         // 世界级随机源，确保生成可重现
         this.seed = this.settings.seed
         this.random = new SeededRandom(this.seed)
+        this.shadowOptions = options.shadowOptions || {}
 
         // 初始化系统
         this.blockDefs = new BlockDefinitions()
@@ -52,7 +53,8 @@ export class World {
             seed: this.seed,
             chunkSize: this.terrain.settings.chunkSize,
             registry: this.registry,
-            blockDefs: this.blockDefs
+            blockDefs: this.blockDefs,
+            shadowOptions: this.shadowOptions
         })
         this.villages = []
         this.decorations = []
@@ -608,9 +610,11 @@ export class World {
                 seed: this.seed,
                 chunkSize: this.terrain.settings.chunkSize,
                 registry: this.registry,
-                blockDefs: this.blockDefs
+                blockDefs: this.blockDefs,
+                shadowOptions: this.shadowOptions
             })
             this.renderCoordinator = new RenderCoordinator(this.scene, this.voxelBuilder)
+            this.renderCoordinator.updateShadowFlags(this.shadowOptions)
             this.workerCoordinator = new WorkerCoordinator({
                 terrainSettings: this.terrain.getSettings(),
                 onChunkData: (payload) => this.applyChunkData(payload),
@@ -624,6 +628,28 @@ export class World {
             this.terrain.updateSettings(newSettings.terrain)
             this.workerCoordinator.terrainSettings = this.terrain.getSettings()
         }
+    }
+
+    /**
+     * 更新视距并刷新低细节阈值
+     * @param {number} viewDistance
+     */
+    setViewDistance(viewDistance = 6) {
+        const vd = Math.max(1, Math.floor(viewDistance))
+        this.chunkManager.viewDistance = vd
+        this.lowDetailRadius = this.terrain.settings.chunkSize * Math.max(1, vd - 2)
+        this.lastChunkCheckChunk = null
+        this.lastChunkCheckTime = 0
+    }
+
+    /**
+     * 开关阴影（用于性能模式/选项界面）
+     * @param {object} options
+     */
+    setShadowOptions(options = {}) {
+        this.shadowOptions = { ...this.shadowOptions, ...options }
+        this.voxelBuilder?.setShadowOptions(this.shadowOptions)
+        this.renderCoordinator?.updateShadowFlags(this.shadowOptions)
     }
 
     /**

@@ -51,6 +51,7 @@ export class BlockInteractor {
         this.progressUI = this.createProgressUI()
         this.inventoryOpen = false
         this.mapOpen = false
+        this.paused = false
         this.mapSize = 400
         this.mapBaseRadius = 128
         this.mapZoom = 1.0
@@ -69,6 +70,23 @@ export class BlockInteractor {
 
         this.initInput()
         this.updateInventoryUI()
+    }
+
+    setPaused(paused) {
+        this.paused = paused
+        if (paused) {
+            this.stopBreaking()
+            this.closeInventory()
+            this.closeMap()
+        }
+    }
+
+    isInventoryOpen() {
+        return this.inventoryOpen
+    }
+
+    isMapOpen() {
+        return this.mapOpen
     }
 
     createHighlightMesh() {
@@ -508,6 +526,15 @@ export class BlockInteractor {
         }
     }
 
+    closeInventory() {
+        if (!this.inventoryOpen) return
+        this.stashHeldItem()
+        this.inventoryOpen = false
+        if (this.inventoryUI) {
+            this.inventoryUI.style.display = 'none'
+        }
+    }
+
     updateHotbarLabel() {
         if (!this.hotbarLabel) return
         const slot = this.inventory.getSlot(this.selectedIndex)
@@ -599,6 +626,7 @@ export class BlockInteractor {
         window.addEventListener('contextmenu', (e) => e.preventDefault())
 
         window.addEventListener('keydown', (e) => {
+            if (this.paused) return
             // 热键栏 1-9
             if (e.code.startsWith('Digit')) {
                 const num = parseInt(e.code.replace('Digit', ''), 10)
@@ -634,6 +662,10 @@ export class BlockInteractor {
         })
 
         window.addEventListener('mousedown', (e) => {
+            if (this.paused) {
+                e.stopPropagation()
+                return
+            }
             if (this.inventoryOpen) {
                 e.stopPropagation()
                 return
@@ -651,6 +683,10 @@ export class BlockInteractor {
         })
 
         window.addEventListener('mouseup', (e) => {
+            if (this.paused) {
+                e.stopPropagation()
+                return
+            }
             if (this.inventoryOpen) {
                 e.stopPropagation()
                 return
@@ -666,6 +702,10 @@ export class BlockInteractor {
 
         // 滚轮切换热键栏
         window.addEventListener('wheel', (e) => {
+            if (this.paused) {
+                e.stopPropagation()
+                return
+            }
             if (this.inventoryOpen) {
                 e.stopPropagation()
                 return
@@ -988,6 +1028,10 @@ export class BlockInteractor {
     }
 
     update() {
+        if (this.paused) {
+            this.updateProgressUI(0)
+            return
+        }
         this.updateHighlight()
 
         // 破坏计时更新
@@ -1146,6 +1190,14 @@ export class BlockInteractor {
                 document.exitPointerLock()
             }
             this.renderMinimap()
+        }
+    }
+
+    closeMap() {
+        if (!this.mapOpen) return
+        this.mapOpen = false
+        if (this.mapHolder) {
+            this.mapHolder.style.display = 'none'
         }
     }
 
